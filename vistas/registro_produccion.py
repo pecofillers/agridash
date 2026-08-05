@@ -5,21 +5,17 @@ from modelos.modelo_ubicaciones import listar_bloques, listar_naves, listar_cama
 from controladores.controlador_produccion import registrar_produccion, obtener_produccion_nave, actualizar_produccion_nave
 
 @requiere_autenticacion
-@requiere_permiso("registro_produccion", "ver")
+@requiere_permiso("registro_produccion", "ver") # 👈 ESTA ES LA MAGIA
 def render():
-    st.markdown("<h2 class='main-title'>👨‍🌾 MÓDULO OPERATIVO - PRODUCCIÓN</h2>", unsafe_allow_html=True)
-    st.info("💡 Los datos registrados aquí se almacenan y actualizan en tiempo real en la base de datos centralizada.")
+    st.markdown("<h2 class='main-title'>👨‍🌾 MÓDULO OPERATIVO</h2>", unsafe_allow_html=True)
+    st.info("Los datos registrados aquí se guardan de forma centralizada y en tiempo real en Google Sheets.")
     
     # ----------------------------------------------------
-    # SELECTORES DINÁMICOS (Leídos desde la base de datos relacional)
+    # SELECTORES DINÁMICOS (Leídos desde la base de datos)
     # ----------------------------------------------------
     col_sel1, col_sel2 = st.columns(2)
     
     lista_bloques = listar_bloques()
-    if not lista_bloques:
-        st.warning("⚠️ No hay bloques registrados en la base de datos. Por favor, créalos en el módulo de Ubicaciones.")
-        return
-        
     bloque_seleccionado = col_sel1.selectbox("🏢 SELECCIONA EL BLOQUE", lista_bloques)
     
     lista_naves = listar_naves(bloque_seleccionado)
@@ -35,13 +31,9 @@ def render():
             st.subheader(f"AGREGANDO DATOS A: {bloque_seleccionado} - {nave_seleccionada}")
             col_a1, col_a2, col_a3 = st.columns(3)
             
-            # Las camas se filtran dinámicamente según la nave seleccionada desde la BD
+            # Las camas se filtran dinámicamente según la nave seleccionada
             lista_camas = listar_camas(bloque_seleccionado, nave_seleccionada)
-            if not lista_camas:
-                st.error("⚠️ Esta nave no tiene camas asociadas.")
-                cama = None
-            else:
-                cama = col_a1.selectbox("CAMA", lista_camas)
+            cama = col_a1.selectbox("CAMA", lista_camas)
             
             semana = col_a2.number_input("SEMANA #", min_value=1, max_value=52, value=1, step=1)
             año = col_a3.selectbox("AÑO", [2026, 2025, 2024, 2023])
@@ -65,32 +57,30 @@ def render():
             st.write("")
             st.markdown(f"### 🎯 TOTAL CORTADO + BAJAS: **{total_semana}**")
             
-            guardar = st.form_submit_button("💾 GUARDAR EN LA BASE DE DATOS", use_container_width=True, type="primary")
+            guardar = st.form_submit_button("💾 GUARDAR EN LA NUBE", use_container_width=True, type="primary")
             
             if guardar:
-                if not cama:
-                    st.error("⚠️ No se puede guardar sin una cama válida seleccionada.")
-                else:
-                    nuevo_registro = {
-                        "Bloque": bloque_seleccionado,
-                        "Nave": nave_seleccionada,
-                        "Cama": cama, 
-                        "Semana": semana, 
-                        "Año": año,
-                        "Lunes": lunes, "Martes": martes, "Miercoles": miercoles,
-                        "Jueves": jueves, "Viernes": viernes, "Sabado": sabado,
-                        "Domingo": domingo, "Bajas": bajas, 
-                        "Total": total_semana
-                    }
-                    
-                    try:
-                        exito, mensaje = registrar_produccion(nuevo_registro)
-                        if exito:
-                            st.success("✅ ¡REGISTRO GUARDADO EN LA BASE DE DATOS EXITOSAMENTE!")
-                        else:
-                            st.error(mensaje)
-                    except Exception as e:
-                        st.error(f"Error técnico al guardar: {e}")
+                nuevo_registro = {
+                    "Bloque": bloque_seleccionado,
+                    "Nave": nave_seleccionada,
+                    "Cama": cama, 
+                    "Semana": semana, 
+                    "Año": año,
+                    "Lunes": lunes, "Martes": martes, "Miercoles": miercoles,
+                    "Jueves": jueves, "Viernes": viernes, "Sabado": sabado,
+                    "Domingo": domingo, "Bajas": bajas, 
+                    "Total": total_semana
+                }
+                
+                # Enviamos los datos al controlador
+                try:
+                    exito, mensaje = registrar_produccion(nuevo_registro)
+                    if exito:
+                        st.success(f"✅ ¡REGISTRO GUARDADO EN LA NUBE EXITOSAMENTE!")
+                    else:
+                        st.error(mensaje)
+                except Exception as e:
+                    st.error(f"Error técnico al guardar: {e}")
 
     # ----------------------------------------------------
     # TAB 2: EDITOR EN VIVO
@@ -98,14 +88,16 @@ def render():
     with tab_editar:
         st.subheader(f"BASE DE DATOS: {bloque_seleccionado} - {nave_seleccionada}")
         
+        # Pedimos los datos actuales al controlador (filtrados por nave y bloque)
         df_bd = obtener_produccion_nave(bloque_seleccionado, nave_seleccionada)
         
         if df_bd is not None and not df_bd.empty:
-            st.info("💡 Haz doble clic en las celdas para editar. Al terminar, presiona 'ACTUALIZAR BASE DE DATOS'.")
+            st.info("Haz doble clic en las celdas para editar. Al terminar, presiona 'ACTUALIZAR NUBE'.")
             
             datos_editados = st.data_editor(df_bd, num_rows="dynamic", use_container_width=True)
             
-            if st.button("🔄 ACTUALIZAR BASE DE DATOS CON ESTOS CAMBIOS", type="primary"):
+            if st.button("🔄 ACTUALIZAR NUBE CON ESTOS CAMBIOS", type="primary"):
+                # Recalculamos totales locales antes de enviar
                 columnas_dias = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado', 'Domingo', 'Bajas']
                 cols_presentes = [c for c in columnas_dias if c in datos_editados.columns]
                 if cols_presentes:
@@ -113,8 +105,7 @@ def render():
 
                 exito, mensaje = actualizar_produccion_nave(bloque_seleccionado, nave_seleccionada, datos_editados)
                 if exito:
-                    st.success("✅ ¡LOS DATOS SE HAN ACTUALIZADO EN LA BASE DE DATOS!")
-                    st.rerun()
+                    st.success("✅ ¡LOS DATOS SE HAN ACTUALIZADO EN GOOGLE SHEETS!")
                 else:
                     st.error(mensaje)
         else:

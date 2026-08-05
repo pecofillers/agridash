@@ -1,8 +1,8 @@
 import streamlit as st
 import pandas as pd
-# 👇 CORRECCIÓN 1: Eliminamos 'crear_usuario' de la importación
-from modelos.modelo_usuarios import tabla_usuarios
+from modelos.modelo_usuarios import tabla_usuarios, crear_usuario
 from modelos.modelo_roles import ModeloRoles
+# 👇 Importamos el nuevo decorador dinámico
 from seguridad.auth import requiere_autenticacion, requiere_permiso, hash_password
 from seguridad.rbac_config import MODULOS_SISTEMA, cargar_matriz_permisos
 
@@ -19,20 +19,13 @@ def render():
     ])
 
     modelo_roles = ModeloRoles()
-    
-    # Obtenemos los roles para usarlos en todos los tabs
-    df_roles = modelo_roles.obtener_roles_activos()
-    if not df_roles.empty and "Nombre_Rol" in df_roles.columns:
-        dict_roles = dict(zip(df_roles["Nombre_Rol"], df_roles["ID_Rol"]))
-    else:
-        dict_roles = {"ADMIN": 1, "OPERARIO": 2}
 
     # -----------------------------------------------------------------
     # TAB 1: GESTIÓN DE USUARIOS
     # -----------------------------------------------------------------
     with tab_usuarios:
         st.subheader("➕ Crear Nuevo Usuario")
-        with st.form("form_crear_usuario_config", clear_on_submit=True):
+        with st.form("form_crear_usuario", clear_on_submit=True):
             c1, c2 = st.columns(2)
             with c1:
                 nuevo_user = st.text_input("Username (Nombre de usuario):").strip().lower()
@@ -43,9 +36,9 @@ def render():
                 correo = st.text_input("Correo Electrónico (para recuperación):").strip().lower()
                 nueva_pass = st.text_input("Contraseña inicial:", type="password")
                 
-                # Selector de rol ajustado a IDs numéricos
-                nuevo_rol_nombre = st.selectbox("Rol asignado:", list(dict_roles.keys()))
-                nuevo_rol_id = dict_roles[nuevo_rol_nombre]
+                df_roles = modelo_roles.obtener_roles_activos()
+                roles_disponibles = df_roles["ID_Rol"].tolist() if not df_roles.empty else ["ADMIN", "OPERARIO", "AGRONOMO"]
+                nuevo_rol = st.selectbox("Rol asignado:", roles_disponibles)
 
             btn_guardar_user = st.form_submit_button("💾 REGISTRAR USUARIO", type="primary")
             if btn_guardar_user:
@@ -53,11 +46,7 @@ def render():
                     st.error("⚠️ Los campos de Usuario, Nombre, Correo y Contraseña son obligatorios.")
                 else:
                     try:
-                        # 👇 CORRECCIÓN 2: Llamamos a tabla_usuarios.crear_usuario enviando el id_rol_num
-                        exito, msj = tabla_usuarios.crear_usuario(
-                            nuevo_user, nuevo_nombre, nuevos_apellidos, telefono, 
-                            correo, hash_password(nueva_pass), id_rol_num=nuevo_rol_id
-                        )
+                        exito, msj = crear_usuario(nuevo_user, nuevo_nombre, nuevos_apellidos, telefono, correo, hash_password(nueva_pass), id_rol=nuevo_rol)
                         if exito:
                             st.success(f"✅ ¡Usuario **{nuevo_user}** registrado exitosamente!")
                             st.rerun()
@@ -72,9 +61,7 @@ def render():
 
         if df_usuarios is not None and not df_usuarios.empty:
             for idx, row in df_usuarios.iterrows():
-                # Mostramos el Nombre_Rol si existe, sino usamos el ID
-                rol_mostrar = row.get('Nombre_Rol', row.get('ID_Rol'))
-                with st.expander(f"👤 {row.get('Username')} — {row.get('Nombre', '')} {row.get('Apellidos', '')} [Rol: {rol_mostrar}]"):
+                with st.expander(f"👤 {row.get('Username')} — {row.get('Nombre', '')} {row.get('Apellidos', '')} [Rol: {row.get('ID_Rol')}]"):
                     col_info, col_accion1, col_accion2 = st.columns([2, 1, 1])
                     
                     with col_info:
@@ -141,12 +128,8 @@ def render():
     # -----------------------------------------------------------------
     with tab_rbac:
         st.subheader("🛡️ Configuración de Roles y Permisos (RBAC)")
-        
-        # Usamos los nombres visuales para el usuario, pero procesamos con los IDs
-        rol_sel_nombre = st.selectbox("Selecciona el Rol a configurar:", list(dict_roles.keys()))
-        rol_sel_id = dict_roles[rol_sel_nombre]
-        
-        matriz_actual = cargar_matriz_permisos().get(rol_sel_id, {})
+        rol_sel = st.selectbox("Selecciona el Rol a configurar:", df_roles["ID_Rol"].tolist() if not df_roles.empty else ["ADMIN", "OPERARIO"])
+        matriz_actual = cargar_matriz_permisos().get(rol_sel, {})
 
         permisos_nuevos = {}
         c_mod, c_ver, c_crear, c_edit, c_elim = st.columns([3, 1, 1, 1, 1])
@@ -161,16 +144,16 @@ def render():
             col1, col2, col3, col4, col5 = st.columns([3, 1, 1, 1, 1])
 
             col1.write(etiqueta)
-            ver = col2.checkbox("Ver", value=("ver" in acciones_actuales), key=f"rbac_{rol_sel_id}_{clave_mod}_ver", label_visibility="collapsed")
-            crear = col3.checkbox("Crear", value=("crear" in acciones_actuales), key=f"rbac_{rol_sel_id}_{clave_mod}_crear", label_visibility="collapsed")
-            editar = col4.checkbox("Editar", value=("editar" in acciones_actuales), key=f"rbac_{rol_sel_id}_{clave_mod}_editar", label_visibility="collapsed")
-            eliminar = col5.checkbox("Eliminar", value=("eliminar" in acciones_actuales), key=f"rbac_{rol_sel_id}_{clave_mod}_eliminar", label_visibility="collapsed")
+            ver = col2.checkbox("Ver", value=("ver" in acciones_actuales), key=f"rbac_{rol_sel}_{clave_mod}_ver", label_visibility="collapsed")
+            crear = col3.checkbox("Crear", value=("crear" in acciones_actuales), key=f"rbac_{rol_sel}_{clave_mod}_crear", label_visibility="collapsed")
+            editar = col4.checkbox("Editar", value=("editar" in acciones_actuales), key=f"rbac_{rol_sel}_{clave_mod}_editar", label_visibility="collapsed")
+            eliminar = col5.checkbox("Eliminar", value=("eliminar" in acciones_actuales), key=f"rbac_{rol_sel}_{clave_mod}_eliminar", label_visibility="collapsed")
 
             permisos_nuevos[clave_mod] = {"ver": ver, "crear": crear, "editar": editar, "eliminar": eliminar}
 
         if st.button("💾 GUARDAR CAMBIOS DE PERMISOS", type="primary", use_container_width=True):
             exito, msj = modelo_roles.guardar_rol_y_permisos(
-                id_rol=rol_sel_id, nombre_rol=rol_sel_nombre, descripcion="Actualizado desde configuración", permisos_dict=permisos_nuevos
+                id_rol=rol_sel, nombre_rol=rol_sel, descripcion="Actualizado desde configuración", permisos_dict=permisos_nuevos
             )
             if exito:
                 st.success("✅ ¡Matriz de permisos actualizada correctamente!")

@@ -9,29 +9,12 @@ from modelos.modelo_usuarios import tabla_usuarios, obtener_usuario
 from seguridad.rbac_config import cargar_matriz_permisos
 
 # ------------------------------------------------------------------
-# A) Control de Permisos RBAC (Dinámico y Flexible)
+# A) Control de Permisos RBAC
 # ------------------------------------------------------------------
-def tiene_permiso(rol_o_id, modulo: str, accion: str = "ver") -> bool:
-    """
-    Consulta la matriz RBAC dinámica. Es totalmente flexible:
-    acepta tanto el ID numérico del rol como su nombre en texto.
-    """
+def tiene_permiso(rol: str, modulo: str, accion: str = "ver") -> bool:
+    """Consulta la matriz RBAC dinámica de permisos."""
     permisos = cargar_matriz_permisos()
-    
-    # Buscamos directamente si la clave existe (puede ser ID numérico o texto)
-    acciones_rol = permisos.get(rol_o_id)
-    
-    # Si no se encuentra directo, intentamos buscar si pasaron el nombre en lugar de ID o viceversa
-    if not acciones_rol:
-        for k, v in permisos.items():
-            if str(k).lower() == str(rol_o_id).lower():
-                acciones_rol = v
-                break
-                
-    if not acciones_rol:
-        return False
-        
-    return accion in acciones_rol.get(modulo, [])
+    return accion in permisos.get(rol, {}).get(modulo, [])
 
 
 def requiere_autenticacion(func):
@@ -56,13 +39,12 @@ def requiere_autenticacion(func):
 def requiere_permiso(modulo: str, accion: str = "ver"):
     """
     Decorador dinámico: Lee el rol del usuario en sesión y verifica
-    contra la base de datos si tiene acceso al módulo indicado.
+    si tiene acceso al módulo indicado.
     """
     def decorador(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             rol_actual = st.session_state.get("rol")
-            
             if not tiene_permiso(rol_actual, modulo, accion):
                 st.error(f"⛔ Tu rol actual (**{rol_actual}**) no tiene permisos configurados para acceder a este módulo.")
                 st.stop()
@@ -86,7 +68,7 @@ def _actualizar_ultima_actividad():
 
 
 def cerrar_sesion():
-    for clave in ("autenticado", "username", "nombre", "rol", "rol_id", "ultima_actividad"):
+    for clave in ("autenticado", "username", "nombre", "rol", "ultima_actividad"):
         st.session_state.pop(clave, None)
 
 
@@ -120,8 +102,6 @@ def _usuario_bloqueado(usuario: dict) -> bool:
 
 def _registrar_intento_fallido(username: str):
     df = tabla_usuarios.leer()
-    if df is None or df.empty:
-        return
     idx = df.index[df["Username"] == username]
     if idx.empty:
         return
@@ -135,8 +115,6 @@ def _registrar_intento_fallido(username: str):
 
 def _resetear_intentos(username: str):
     df = tabla_usuarios.leer()
-    if df is None or df.empty:
-        return
     idx = df.index[df["Username"] == username]
     if idx.empty:
         return
@@ -176,11 +154,7 @@ def login(username: str, password: str) -> tuple[bool, str]:
     st.session_state["autenticado"] = True
     st.session_state["username"] = username
     st.session_state["nombre"] = usuario.get("Nombre", username)
-    
-    # Guardamos tanto el nombre del rol como el ID numérico para máxima compatibilidad
-    st.session_state["rol"] = usuario.get("Nombre_Rol", usuario.get("ID_Rol"))
-    st.session_state["rol_id"] = usuario.get("ID_Rol")
-    
+    st.session_state["rol"] = usuario.get("ID_Rol")
     _actualizar_ultima_actividad()
     return True, f"✅ Bienvenido, {usuario.get('Nombre', username)}."
 

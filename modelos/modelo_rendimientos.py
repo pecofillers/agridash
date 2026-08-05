@@ -9,12 +9,9 @@ class ModeloRendimientos(DBCore):
     # --- GRUPOS ---
     def obtener_grupos(self, supervisor=None, rol="OPERARIO"):
         if rol in ["ADMIN", "SUPERADMIN"]:
-            return self.leer_datos("SELECT ID_Grupo, Nombre_Grupo, Supervisor_Asignado FROM dim_grupos ORDER BY Nombre_Grupo")
+            return self.leer_datos("SELECT * FROM dim_grupos ORDER BY Nombre_Grupo")
         else:
-            return self.leer_datos(
-                "SELECT ID_Grupo, Nombre_Grupo, Supervisor_Asignado FROM dim_grupos WHERE Supervisor_Asignado = :sup", 
-                {"sup": supervisor}
-            )
+            return self.leer_datos("SELECT * FROM dim_grupos WHERE Supervisor_Asignado = :sup", {"sup": supervisor})
 
     def crear_grupo(self, nombre_grupo, supervisor):
         query = "INSERT INTO dim_grupos (Nombre_Grupo, Supervisor_Asignado) VALUES (:grp, :sup)"
@@ -25,10 +22,10 @@ class ModeloRendimientos(DBCore):
     def actualizar_grupos(self, df_actualizado):
         try:
             for _, row in df_actualizado.iterrows():
-                query = "UPDATE dim_grupos SET Supervisor_Asignado = :sup WHERE ID_Grupo = :id_grp"
+                query = "UPDATE dim_grupos SET Supervisor_Asignado = :sup WHERE Nombre_Grupo = :grp"
                 self.ejecutar_accion(query, {
                     "sup": row.get("Supervisor_Asignado"), 
-                    "id_grp": row.get("ID_Grupo")
+                    "grp": row.get("Nombre_Grupo")
                 })
             st.cache_data.clear()
             return True, "✅ Grupos actualizados correctamente."
@@ -37,49 +34,47 @@ class ModeloRendimientos(DBCore):
 
     # --- COLABORADORES ---
     def obtener_colaboradores(self, supervisor=None, rol="OPERARIO"):
-        """Retorna colaboradores junto con el ID y Nombre de su grupo."""
         if rol in ["ADMIN", "SUPERADMIN"]:
             query = """
-                SELECT c.ID_Colaborador, c.Nombre_Colaborador, c.ID_Grupo, g.Nombre_Grupo, g.Supervisor_Asignado, c.Estado 
+                SELECT c.ID_Colaborador, c.Nombre_Colaborador, c.Nombre_Grupo, g.Supervisor_Asignado, c.Estado 
                 FROM dim_colaboradores c
-                LEFT JOIN dim_grupos g ON c.ID_Grupo = g.ID_Grupo
-                WHERE c.Estado = 'ACTIVO' AND c.ID_Grupo IS NOT NULL
-                ORDER BY g.Nombre_Grupo, c.Nombre_Colaborador
+                LEFT JOIN dim_grupos g ON c.Nombre_Grupo = g.Nombre_Grupo
+                WHERE c.Estado = 'ACTIVO' AND c.Nombre_Grupo IS NOT NULL
+                ORDER BY c.Nombre_Grupo, c.Nombre_Colaborador
             """
             return self.leer_datos(query)
         else:
             query = """
-                SELECT c.ID_Colaborador, c.Nombre_Colaborador, c.ID_Grupo, g.Nombre_Grupo, g.Supervisor_Asignado, c.Estado 
+                SELECT c.ID_Colaborador, c.Nombre_Colaborador, c.Nombre_Grupo, g.Supervisor_Asignado, c.Estado 
                 FROM dim_colaboradores c
-                JOIN dim_grupos g ON c.ID_Grupo = g.ID_Grupo
-                WHERE g.Supervisor_Asignado = :sup AND c.Estado = 'ACTIVO' AND c.ID_Grupo IS NOT NULL
+                JOIN dim_grupos g ON c.Nombre_Grupo = g.Nombre_Grupo
+                WHERE g.Supervisor_Asignado = :sup AND c.Estado = 'ACTIVO' AND c.Nombre_Grupo IS NOT NULL
                 ORDER BY c.Nombre_Colaborador
             """
             return self.leer_datos(query, {"sup": supervisor})
 
-    def crear_colaborador(self, nombre, id_grupo):
-        """Asigna un colaborador a un grupo mediante su ID_Grupo."""
-        query = "INSERT INTO dim_colaboradores (Nombre_Colaborador, ID_Grupo) VALUES (:nom, :id_g)"
-        exito, msj = self.ejecutar_accion(query, {"nom": nombre.strip(), "id_g": id_grupo})
+    def crear_colaborador(self, nombre, grupo):
+        query = "INSERT INTO dim_colaboradores (Nombre_Colaborador, Nombre_Grupo) VALUES (:nom, :grp)"
+        exito, msj = self.ejecutar_accion(query, {"nom": nombre.strip(), "grp": grupo})
         if exito: st.cache_data.clear()
         return exito, msj
 
     def quitar_colaborador_de_grupo(self, id_colaborador):
         """Desasigna el grupo de un colaborador."""
-        query = "UPDATE dim_colaboradores SET ID_Grupo = NULL WHERE ID_Colaborador = :id"
+        query = "UPDATE dim_colaboradores SET Nombre_Grupo = NULL WHERE ID_Colaborador = :id"
         exito, msj = self.ejecutar_accion(query, {"id": id_colaborador})
         if exito: st.cache_data.clear()
         return exito, msj
 
     # --- RENDIMIENTOS ---
-    def registrar_labor(self, fecha, id_colab, nombre_colab, id_grupo, supervisor, labor, unidad, hora_inicio, hora_fin, horas_trabajadas, cantidad, rendimiento_hora):
+    def registrar_labor(self, fecha, id_colab, nombre_colab, grupo, supervisor, labor, unidad, hora_inicio, hora_fin, horas_trabajadas, cantidad, rendimiento_hora):
         query = """
             INSERT INTO fact_rendimientos_labor 
-            (Fecha, ID_Colaborador, Nombre_Colaborador, ID_Grupo, Supervisor, Tipo_Labor, Unidad_Medida, Hora_Inicio, Hora_Fin, Horas_Trabajadas, Cantidad, Rendimiento_Hora)
-            VALUES (:f, :id_c, :nom_c, :id_g, :sup, :lab, :uni, :h_ini, :h_fin, :h_trab, :cant, :rend)
+            (Fecha, ID_Colaborador, Nombre_Colaborador, Nombre_Grupo, Supervisor, Tipo_Labor, Unidad_Medida, Hora_Inicio, Hora_Fin, Horas_Trabajadas, Cantidad, Rendimiento_Hora)
+            VALUES (:f, :id_c, :nom_c, :grp, :sup, :lab, :uni, :h_ini, :h_fin, :h_trab, :cant, :rend)
         """
         params = {
-            "f": fecha, "id_c": id_colab, "nom_c": nombre_colab, "id_g": id_grupo, "sup": supervisor,
+            "f": fecha, "id_c": id_colab, "nom_c": nombre_colab, "grp": grupo, "sup": supervisor,
             "lab": labor, "uni": unidad, "h_ini": hora_inicio, "h_fin": hora_fin,
             "h_trab": horas_trabajadas, "cant": cantidad, "rend": rendimiento_hora
         }
@@ -87,31 +82,24 @@ class ModeloRendimientos(DBCore):
         if exito: st.cache_data.clear()
         return exito, msj
 
+    # 👇 ESTA ES LA FUNCIÓN QUE CAUSABA EL ERROR (AHORA TIENE TODOS LOS PARÁMETROS)
     def obtener_reporte(self, f_ini, f_fin, supervisor, rol, labor="TODAS", colaborador="TODOS"):
-        """Genera el reporte uniendo con dim_grupos para traer el nombre del grupo."""
-        query = """
-            SELECT r.ID_Rendimiento, r.Fecha, r.ID_Colaborador, r.Nombre_Colaborador, 
-                   g.Nombre_Grupo, r.Supervisor, r.Tipo_Labor, r.Unidad_Medida, 
-                   r.Hora_Inicio, r.Hora_Fin, r.Horas_Trabajadas, r.Cantidad, r.Rendimiento_Hora
-            FROM fact_rendimientos_labor r
-            LEFT JOIN dim_grupos g ON r.ID_Grupo = g.ID_Grupo
-            WHERE r.Fecha BETWEEN :f_ini AND :f_fin
-        """
+        query = "SELECT * FROM fact_rendimientos_labor WHERE Fecha BETWEEN :f_ini AND :f_fin"
         params = {"f_ini": f_ini, "f_fin": f_fin}
 
         if rol not in ["ADMIN", "SUPERADMIN"]:
-            query += " AND r.Supervisor = :sup"
+            query += " AND Supervisor = :sup"
             params["sup"] = supervisor
 
         if labor != "TODAS":
-            query += " AND r.Tipo_Labor = :lab"
+            query += " AND Tipo_Labor = :lab"
             params["lab"] = labor
 
         if colaborador != "TODOS":
-            query += " AND r.Nombre_Colaborador = :colab"
+            query += " AND Nombre_Colaborador = :colab"
             params["colab"] = colaborador
 
-        query += " ORDER BY r.Fecha DESC, r.Hora_Inicio DESC"
+        query += " ORDER BY Fecha DESC, Hora_Inicio DESC"
         return self.leer_datos(query, params)
 
 tabla_rendimientos = ModeloRendimientos()
