@@ -5,85 +5,73 @@ from modelos.db_core import DBCore
 class ModeloUsuarios(DBCore):
     def __init__(self):
         super().__init__()
-        self.tabla = "dim_usuarios"
 
     def leer(self):
-        """Lee todos los usuarios de la base de datos MySQL."""
-        query = f"SELECT * FROM {self.tabla}"
-        df = self.leer_datos(query)
-        return df if not df.empty else pd.DataFrame()
+        """Retorna todos los usuarios incluyendo el Nombre_Rol de dim_roles."""
+        query = """
+            SELECT u.ID_Usuario, u.Username, u.Nombre, u.Apellidos, u.Telefono, u.Correo, 
+                   u.ID_Rol, r.Nombre_Rol, u.Estado, u.Intentos_Fallidos, u.Bloqueado_Hasta
+            FROM dim_usuarios u
+            LEFT JOIN dim_roles r ON u.ID_Rol = r.ID_Rol
+            ORDER BY u.Nombre
+        """
+        return self.leer_datos(query)
 
-    def actualizar_todo(self, df_actualizado):
+    def obtener_usuario(self, username: str):
+        """Obtiene un usuario por su username trayendo el nombre textual del rol."""
+        query = """
+            SELECT u.*, r.Nombre_Rol 
+            FROM dim_usuarios u
+            LEFT JOIN dim_roles r ON u.ID_Rol = r.ID_Rol
+            WHERE LOWER(u.Username) = LOWER(:usr)
+            LIMIT 1
         """
-        Puente de compatibilidad: Recibe el DataFrame editado desde la vista de configuración
-        y actualiza la base de datos MySQL fila por fila.
+        df = self.leer_datos(query, {"usr": username})
+        if not df.empty:
+            data = df.iloc[0].to_dict()
+            # Mantenemos compatibilidad con el sistema asignando Nombre_Rol como ID_Rol para la sesión
+            data["ID_Rol_Num"] = data.get("ID_Rol")
+            data["ID_Rol"] = data.get("Nombre_Rol", "OPERARIO")
+            return data
+        return None
+
+    def crear_usuario(self, username, nombre, apellidos, telefono, correo, password_hash, id_rol_num=1, estado="ACTIVO"):
+        """Crea un nuevo usuario asignando el ID_Rol numérico."""
+        query = """
+            INSERT INTO dim_usuarios 
+            (Username, Nombre, Apellidos, Telefono, Correo, Password_Hash, ID_Rol, Estado) 
+            VALUES (:usr, :nom, :ape, :tel, :cor, :pass, :rol, :est)
         """
+        params = {
+            "usr": username.strip().lower(), "nom": nombre.strip(), "ape": apellidos.strip(),
+            "tel": telefono.strip(), "cor": correo.strip(), "pass": password_hash,
+            "rol": id_rol_num, "est": estado
+        }
+        exito, msj = self.ejecutar_accion(query, params)
+        if exito: st.cache_data.clear()
+        return exito, msj
+
+    def actualizar_todo(self, df_usuarios):
+        """Actualiza el estado, intentos o bloqueos de usuarios."""
         try:
-            for _, row in df_actualizado.iterrows():
-                query = f"""
-                    UPDATE {self.tabla}
-                    SET Nombre=:nombre, Apellidos=:apellidos, Telefono=:tel, Correo=:correo,
-                        Password_Hash=:pwd, ID_Rol=:rol, Estado=:estado,
-                        Intentos_Fallidos=:intentos, Bloqueado_Hasta=:bloqueo
-                    WHERE Username=:username
+            for _, row in df_usuarios.iterrows():
+                query = """
+                    UPDATE dim_usuarios 
+                    SET Estado = :est, Intentos_Fallidos = :intentos, Bloqueado_Hasta = :bloqueo
+                    WHERE Username = :usr
                 """
-                params = {
-                    "nombre": row.get("Nombre"),
-                    "apellidos": row.get("Apellidos"),
-                    "tel": row.get("Telefono"),
-                    "correo": row.get("Correo"),
-                    "pwd": row.get("Password_Hash"),
-                    "rol": row.get("ID_Rol"),
-                    "estado": row.get("Estado", "ACTIVO"),
-                    "intentos": int(row.get("Intentos_Fallidos", 0)),
+                self.ejecutar_accion(query, {
+                    "est": row.get("Estado"),
+                    "intentos": row.get("Intentos_Fallidos", 0),
                     "bloqueo": row.get("Bloqueado_Hasta"),
-                    "username": row.get("Username")
-                }
-                # Ejecutamos el UPDATE para cada fila
-                self.ejecutar_accion(query, params)
-                
-            st.cache_data.clear() # Limpia la caché para refrescar
-            return True, "✅ Usuarios actualizados correctamente en MySQL."
+                    "usr": row.get("Username")
+                })
+            st.cache_data.clear()
+            return True, "✅ Usuarios actualizados."
         except Exception as e:
             return False, f"⚠️ Error al actualizar usuarios: {e}"
 
 tabla_usuarios = ModeloUsuarios()
 
-@st.cache_data(ttl=30, show_spinner=False)
 def obtener_usuario(username: str):
-    """Busca un usuario específico en MySQL."""
-    if not username:
-        return None
-        
-    query = "SELECT * FROM dim_usuarios WHERE Username = :username"
-    df = tabla_usuarios.leer_datos(query, {"username": username.strip().lower()})
-
-    if df is None or df.empty:
-        return None
-
-    return df.iloc[0].to_dict()
-
-def crear_usuario(username, nombre, apellidos, telefono, correo, password_hash, id_rol="OPERARIO"):
-    """Inserta de manera segura un nuevo usuario directamente en MySQL."""
-    query = """
-        INSERT INTO dim_usuarios
-        (Username, Nombre, Apellidos, Telefono, Correo, Password_Hash, ID_Rol, Estado, Intentos_Fallidos)
-        VALUES
-        (:user, :nombre, :apellidos, :tel, :correo, :pwd, :rol, 'ACTIVO', 0)
-    """
-    params = {
-        "user": username.strip().lower(),
-        "nombre": nombre.strip(),
-        "apellidos": apellidos.strip(),
-        "tel": str(telefono).strip(),
-        "correo": correo.strip().lower(),
-        "pwd": password_hash,
-        "rol": id_rol
-    }
-    
-    exito, msj = tabla_usuarios.ejecutar_accion(query, params)
-    if exito:
-        st.cache_data.clear()
-        return True, "✅ Usuario registrado con éxito en MySQL."
-    else:
-        return False, msj
+    return tabla_usuarios.obtener_usuario(username)
