@@ -9,3 +9,4 @@ plotly
 mysql-connector-python
 SQLAlchemy
 PyMySQL
+cryptography
