@@ -5,3 +5,7 @@ bcrypt
 openpyxl
 google-api-python-client
 google-auth
+plotly
+mysql-connector-python
+SQLAlchemy
+PyMySQL
