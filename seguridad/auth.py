@@ -1,25 +1,22 @@
 from datetime import datetime, timedelta
 from functools import wraps
-
 import bcrypt
 import pandas as pd
 import streamlit as st
 
 from config import MAX_INTENTOS_FALLIDOS, MINUTOS_BLOQUEO, MINUTOS_INACTIVIDAD
 from modelos.modelo_usuarios import tabla_usuarios, obtener_usuario
-from seguridad.rbac_config import tiene_permiso
 from seguridad.rbac_config import cargar_matriz_permisos
 
 # ------------------------------------------------------------------
-# A) RBAC
+# A) Control de Permisos RBAC
 # ------------------------------------------------------------------
 def tiene_permiso(rol: str, modulo: str, accion: str = "ver") -> bool:
-    """Consulta la matriz RBAC dinámica (Google Sheets)."""
-    # 👇 CAMBIO AQUÍ: Cargamos los permisos en vivo
+    """Consulta la matriz RBAC dinámica de permisos."""
     permisos = cargar_matriz_permisos()
     return accion in permisos.get(rol, {}).get(modulo, [])
 
-# ... (El resto de tu auth.py desde requiere_autenticacion hacia abajo se queda IGUAL) ...
+
 def requiere_autenticacion(func):
     """
     Decorador de vista: bloquea el acceso directo a un módulo (Forced Browsing)
@@ -42,25 +39,22 @@ def requiere_autenticacion(func):
 def requiere_permiso(modulo: str, accion: str = "ver"):
     """
     Decorador dinámico: Lee el rol del usuario en sesión y verifica
-    contra la base de datos (Google Sheets) si tiene acceso al módulo.
+    si tiene acceso al módulo indicado.
     """
     def decorador(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             rol_actual = st.session_state.get("rol")
-            
-            # Consultamos la base de datos dinámica en vivo
             if not tiene_permiso(rol_actual, modulo, accion):
-                st.error(f"⛔ Tu rol actual (**{rol_actual}**) no tiene permisos configurados en la base de datos para acceder a este módulo.")
+                st.error(f"⛔ Tu rol actual (**{rol_actual}**) no tiene permisos configurados para acceder a este módulo.")
                 st.stop()
-                
             return func(*args, **kwargs)
         return wrapper
     return decorador
 
 
 # ------------------------------------------------------------------
-# B) Control de inactividad (timeout de sesión)
+# B) Control de Inactividad (Timeout de sesión)
 # ------------------------------------------------------------------
 def _sesion_vigente() -> bool:
     ultima = st.session_state.get("ultima_actividad")
@@ -79,7 +73,7 @@ def cerrar_sesion():
 
 
 # ------------------------------------------------------------------
-# Hashing de contraseñas (bcrypt — nunca texto plano)
+# C) Hashing de Contraseñas (bcrypt)
 # ------------------------------------------------------------------
 def hash_password(password_plano: str) -> str:
     """Usar SIEMPRE esta función al crear/resetear una contraseña de usuario."""
@@ -90,12 +84,11 @@ def _verificar_password(password_plano: str, password_hash: str) -> bool:
     try:
         return bcrypt.checkpw(password_plano.encode("utf-8"), str(password_hash).encode("utf-8"))
     except (ValueError, TypeError):
-        # Hash corrupto o vacío: nunca autenticar por error, solo negar.
         return False
 
 
 # ------------------------------------------------------------------
-# B) Bloqueo por fuerza bruta
+# D) Bloqueo por Fuerza Bruta
 # ------------------------------------------------------------------
 def _usuario_bloqueado(usuario: dict) -> bool:
     bloqueado_hasta = usuario.get("Bloqueado_Hasta")
@@ -132,7 +125,7 @@ def _resetear_intentos(username: str):
 
 
 # ------------------------------------------------------------------
-# Login
+# E) Lógica de Autenticación (Backend)
 # ------------------------------------------------------------------
 def login(username: str, password: str) -> tuple[bool, str]:
     """
@@ -142,7 +135,6 @@ def login(username: str, password: str) -> tuple[bool, str]:
     username = (username or "").strip().lower()
     usuario = obtener_usuario(username)
 
-    # Mensaje genérico e idéntico exista o no el usuario: mitiga user enumeration.
     mensaje_generico = "❌ Usuario o contraseña incorrectos."
 
     if usuario is None:
@@ -166,21 +158,40 @@ def login(username: str, password: str) -> tuple[bool, str]:
     _actualizar_ultima_actividad()
     return True, f"✅ Bienvenido, {usuario.get('Nombre', username)}."
 
-def requiere_permiso(modulo: str, accion: str = "ver"):
+
+# ------------------------------------------------------------------
+# F) Vista Visual del Login (Frontend Centrado y Moderno)
+# ------------------------------------------------------------------
+def mostrar_login():
     """
-    Decorador dinámico: Lee el rol del usuario en sesión y verifica
-    contra la base de datos (Google Sheets) si tiene acceso al módulo.
+    Muestra la interfaz de Inicio de Sesión estilo Tarjeta Centrada.
+    Mantiene el modo claro y oscuro dinámico mediante variables de Streamlit.
     """
-    def decorador(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            rol_actual = st.session_state.get("rol")
+    col1, col2, col3 = st.columns([1, 1.5, 1])
+    
+    with col2:
+        st.write("")
+        st.write("")
+        
+        # Encabezado moderno
+        st.markdown("<h1 style='text-align: center; margin-bottom: 0px;'>🌱 AgriDash</h1>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: gray; margin-bottom: 25px;'>Sistema de Gestión • Ecofillers</p>", unsafe_allow_html=True)
+        
+        # Contenedor / Tarjeta del Formulario
+        with st.form("form_login_moderno"):
+            usuario_input = st.text_input("👤 Usuario", placeholder="Ingresa tu username").strip()
+            clave_input = st.text_input("🔒 Contraseña", type="password", placeholder="••••••••")
             
-            # Consultamos la base de datos dinámica en vivo
-            if not tiene_permiso(rol_actual, modulo, accion):
-                st.error(f"⛔ Tu rol actual (**{rol_actual}**) no tiene permisos configurados en la base de datos para acceder a este módulo.")
-                st.stop()
-                
-            return func(*args, **kwargs)
-        return wrapper
-    return decorador
+            st.write("")
+            btn_ingresar = st.form_submit_button("INICIAR SESIÓN", type="primary", use_container_width=True)
+            
+            if btn_ingresar:
+                if not usuario_input or not clave_input:
+                    st.error("⚠️ Ingrese usuario y contraseña.")
+                else:
+                    exito, mensaje = login(usuario_input, clave_input)
+                    if exito:
+                        st.success(mensaje)
+                        st.rerun()
+                    else:
+                        st.error(mensaje)
