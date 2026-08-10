@@ -1,5 +1,6 @@
 -- =====================================================================
 -- migrations_registradas.sql
+-- Hola Mundo
 -- =====================================================================
 -- PROPOSITO:
 --   Registrar las migraciones de Laravel como YA APLICADAS sin volver a
