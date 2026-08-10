@@ -18,7 +18,7 @@ jobs:
         with:
           server: ftpupload.net
           username: if0_42620973
-          password: Limonium2026*
+          password: Limonium2026
           server-dir: /htdocs/
           exclude: |
             .git**
