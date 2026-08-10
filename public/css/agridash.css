@@ -1,0 +1,334 @@
+/* ============================================================
+   AGRIDASH - Estilos
+   Sistema de Gestion • Ecofillers
+   Layout: Navbar superior (estilo Laravel) + submenus
+   ============================================================ */
+
+:root {
+    /* Paleta verde suave y natural (sin mezcla con azul) */
+    --primary: #3CB371;        /* MediumSeaGreen - equilibrado para textos/botones */
+    --primary-dark: #2E8B57;   /* SeaGreen - hover/acentos */
+    --primary-light: #90EE90;  /* LightGreen - luminoso */
+    --primary-50: #A8E6CF;     /* Menta - muy suave para fondos/hover */
+    --text: #2f3b33;
+    --text-muted: #6c757d;
+    --bg: #f7faf8;
+    --border: #d7e6dd;
+    --danger: #dc2626;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+    --radius: 12px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    background: var(--bg);
+    font-family: 'Nunito', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    color: var(--text);
+    font-size: 0.875rem;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ============================================================
+   NAVBAR SUPERIOR (estilo Laravel/Breeze)
+   ============================================================ */
+.agri-navbar {
+    background: #ffffff;
+    border-bottom: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+    padding: 0.5rem 0;
+    min-height: 60px;
+}
+.agri-navbar .container-fluid { padding-left: 1.5rem; padding-right: 1.5rem; }
+
+/* Marca */
+.agri-navbar .brand-icon {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--primary-light), var(--primary));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem;
+    color: #fff;
+}
+.agri-navbar .brand-text {
+    font-weight: 800;
+    color: var(--primary);
+    letter-spacing: 0.3px;
+    font-size: 1.1rem;
+}
+
+/* Items del menu */
+.agri-navbar .navbar-nav .nav-link {
+    color: #495057;
+    font-weight: 600;
+    font-size: 0.875rem;
+    padding: 0.6rem 0.9rem;
+    border-radius: 8px;
+    transition: all 0.15s ease;
+}
+.agri-navbar .navbar-nav .nav-link:hover {
+    background: var(--primary-50);
+    color: var(--primary-dark);
+}
+.agri-navbar .navbar-nav .nav-link.active {
+    background: var(--primary);
+    color: #fff;
+}
+.agri-navbar .nav-link i { color: var(--primary); }
+.agri-navbar .nav-link.active i { color: #fff; }
+
+/* Dropdowns */
+.agri-navbar .dropdown-menu {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    padding: 0.4rem;
+}
+.agri-navbar .dropdown-item {
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    padding: 0.5rem 0.8rem;
+}
+.agri-navbar .dropdown-item:hover {
+    background: var(--primary-50);
+    color: var(--primary-dark);
+}
+
+/* Avatar */
+.avatar {
+    width: 36px; height: 36px;
+    min-width: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary-light), var(--primary));
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 0.85rem;
+    color: #fff;
+    position: relative;
+}
+.avatar-sm { width: 30px; height: 30px; min-width: 30px; font-size: 0.75rem; }
+.avatar::after {
+    content: '';
+    position: absolute;
+    bottom: 1px; right: 1px;
+    width: 9px; height: 9px;
+    background: #00e676;
+    border: 2px solid #ffffff;
+    border-radius: 50%;
+}
+
+.role-badge {
+    background: var(--primary-50);
+    color: var(--primary-dark);
+    border: 1px solid #c8e6c9;
+    border-radius: 20px;
+    padding: 1px 9px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    display: inline-block;
+}
+
+/* ============================================================
+   CONTENIDO
+   ============================================================ */
+.main-content {
+    padding: 1.75rem 2rem;
+    min-height: calc(100vh - 60px);
+}
+
+.page-title {
+    color: var(--primary);
+    font-weight: 800;
+    font-size: 1.35rem;
+    letter-spacing: -0.3px;
+    margin-bottom: 1.25rem;
+}
+
+/* Botones verdes de marca */
+.btn-primary {
+    background-color: var(--primary);
+    border-color: var(--primary);
+}
+.btn-primary:hover {
+    background-color: var(--primary-dark);
+    border-color: var(--primary-dark);
+}
+.btn-outline-primary {
+    color: var(--primary);
+    border-color: var(--primary);
+}
+.btn-outline-primary:hover {
+    background-color: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+}
+
+/* Cards */
+.card, .card-dashboard {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+}
+.card-header {
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    font-weight: 700;
+}
+
+/* Stat cards */
+.stat-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    padding: 1.1rem;
+    transition: all 0.2s ease;
+}
+.stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+}
+.stat-card .stat-icon {
+    width: 48px; height: 48px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem;
+    margin-bottom: 0.6rem;
+}
+.stat-card .stat-value {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1.1;
+}
+.stat-card .stat-label {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 500;
+}
+.stat-green  { background: linear-gradient(135deg, #e8f5e9, #c8e6c9); color: var(--primary-dark); }
+.stat-blue   { background: linear-gradient(135deg, #bff8ea, #9fe8d9); color: #117a65; }  /* Verde mar claro (#20B2AA) */
+.stat-purple { background: linear-gradient(135deg, #f9eee8, #f1ded2); color: #8b5a2b; }  /* Verde salvia/crema */
+.stat-orange { background: linear-gradient(135deg, #fff3e0, #ffe0b2); color: #e65100; }
+
+/* Tables */
+.table-thead th {
+    background: var(--primary-50);
+    color: var(--primary-dark);
+    font-weight: 700;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    border-bottom: 1px solid var(--primary-light) !important;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+.table td, .table th { vertical-align: middle; }
+.table-hover tbody tr:hover { background: #f8fdf8; }
+
+/* Forms */
+.form-label {
+    font-weight: 600;
+    color: var(--text);
+    font-size: 0.8rem;
+}
+.form-control, .form-select {
+    border-radius: 8px;
+    border: 1px solid #ced4da;
+    font-size: 0.875rem;
+}
+.form-control:focus, .form-select:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 0.2rem rgba(60,179,113,0.18);
+}
+
+/* Alerts fijas */
+.alert-msg {
+    position: fixed;
+    top: 70px;
+    right: 20px;
+    z-index: 1051;
+    max-width: 380px;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    animation: slideIn 0.35s ease;
+}
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to   { transform: translateX(0); opacity: 1; }
+}
+
+/* Tabs (submodulos) */
+.nav-tabs .nav-link {
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+.nav-tabs .nav-link.active {
+    color: var(--primary);
+    font-weight: 700;
+    border-bottom: 2px solid var(--primary);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 7px; height: 7px; }
+::-webkit-scrollbar-track { background: #f1f1f1; }
+::-webkit-scrollbar-thumb { background: #c5cdc5; border-radius: 4px; }
+
+/* ============================================================
+   RESPONSIVE (navbar colapsable nativo de Bootstrap)
+   ============================================================ */
+@media (max-width: 991.98px) {
+    .main-content {
+        padding: 1.25rem 1rem;
+    }
+    .agri-navbar .navbar-collapse {
+        background: #fff;
+        border-top: 1px solid var(--border);
+        margin-top: 0.5rem;
+        padding: 0.5rem 0;
+        border-radius: 12px;
+    }
+}
+
+/* ============================================================
+   MODO OSCURO
+   ============================================================ */
+@media (prefers-color-scheme: dark) {
+    body {
+        background: #0f172a;
+        color: #e2e8f0;
+    }
+    .agri-navbar {
+        background: #1e293b;
+        border-color: #334155;
+    }
+    .agri-navbar .brand-text { color: #a5d6a7; }
+    .agri-navbar .navbar-nav .nav-link { color: #cbd5e1; }
+    .agri-navbar .navbar-nav .nav-link:hover { background: #273449; color: #fff; }
+    .agri-navbar .navbar-nav .nav-link.active { background: var(--primary); color: #fff; }
+    .agri-navbar .nav-link i { color: #81c784; }
+    .agri-navbar .nav-link.active i { color: #fff; }
+    .agri-navbar .dropdown-menu { background: #1e293b; border-color: #334155; }
+    .agri-navbar .dropdown-item { color: #cbd5e1; }
+    .agri-navbar .dropdown-item:hover { background: #273449; color: #fff; }
+    .role-badge { background: rgba(102,187,106,0.15); color: #a5d6a7; border-color: rgba(102,187,106,0.3); }
+    .page-title { color: #81c784; }
+    .card, .stat-card { background: #1e293b; border-color: #334155; }
+    .card-header { background: #1e293b; border-color: #334155; }
+    .stat-card .stat-value { color: #f1f5f9; }
+    .stat-card .stat-label { color: #94a3b8; }
+    .table { color: #e2e8f0; }
+    .table-thead th { background: #273449; color: #81c784; }
+    .table-hover tbody tr:hover { background: #273449; }
+    .form-control, .form-select { background: #0f172a; border-color: #334155; color: #e2e8f0; }
+    .form-label { color: #cbd5e1; }
+    .nav-tabs .nav-link { color: #94a3b8; }
+    .nav-tabs .nav-link.active { color: #81c784; }
+    @media (max-width: 991.98px) {
+        .agri-navbar .navbar-collapse { background: #1e293b; border-color: #334155; }
+    }
+}
