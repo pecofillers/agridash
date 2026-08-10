@@ -13,6 +13,7 @@ jobs:
       - name: Get latest code
         uses: actions/checkout@v3
 
+
       - name: Sync files with InfinityFree FTPss
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
