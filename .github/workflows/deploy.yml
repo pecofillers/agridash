@@ -24,6 +24,7 @@ jobs:
             .git**
             .github**
             node_modules/**
+            vendor/**
             tests/**
             storage/*.sqlite
             .env
