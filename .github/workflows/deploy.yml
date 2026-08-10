@@ -13,13 +13,13 @@ jobs:
       - name: Get latest code
         uses: actions/checkout@v3
 
-      - name: Sync files with InfinityFree FTP
+      - name: Sync files with InfinityFree FTPss
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
-          server: ${{ secrets.FTP_HOST }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          server-dir: ${{ secrets.FTP_TARGET_FOLDER }}
+          server: ftpupload.net
+          username: if0_42620973
+          password: TU_CONTRASEÑA_REAL_AQUÍ
+          server-dir: /htdocs/
           exclude: |
             .git**
             .github**
