@@ -35,26 +35,37 @@ $roles = Rol::orderBy('Nombre_Rol')->get();
     public function guardar(Request $request)
     {
         $request->validate([
+            'ID_Rol' => 'nullable|integer', // Agregamos el ID para distinguir edición de creación
             'Nombre_Rol' => 'required|string|max:50',
             'Descripcion' => 'nullable|string|max:255',
         ]);
 
         $nombre = strtoupper(trim($request->Nombre_Rol));
 
-        // Crear o actualizar el rol
-        $rol = Rol::where('Nombre_Rol', $nombre)->first();
-        if ($rol) {
-            $rol->update(['Descripcion' => $request->Descripcion]);
+        // 1. Crear o actualizar el rol
+        if ($request->ID_Rol) {
+            // Modo Edición
+            $rol = Rol::findOrFail($request->ID_Rol);
+            $rol->update([
+                'Nombre_Rol' => $nombre,
+                'Descripcion' => $request->Descripcion
+            ]);
+            $mensaje = "Rol y permisos actualizados correctamente.";
         } else {
-            $rol = Rol::create(['Nombre_Rol' => $nombre, 'Descripcion' => $request->Descripcion]);
+            // Modo Creación (o sobrescribir si escriben el mismo nombre)
+            $rol = Rol::where('Nombre_Rol', $nombre)->first();
+            if ($rol) {
+                $rol->update(['Descripcion' => $request->Descripcion]);
+            } else {
+                $rol = Rol::create(['Nombre_Rol' => $nombre, 'Descripcion' => $request->Descripcion]);
+            }
+            $mensaje = "Rol $nombre creado correctamente.";
         }
 
-        // Borrar permisos viejos
+        // 2. Borrar permisos viejos
         PermisoRol::where('ID_Rol', $rol->ID_Rol)->delete();
 
-        // Insertar permisos por pestaña (submódulo). El acceso a un módulo se
-        // deriva de tener al menos una pestaña concedida. No se usan acciones
-        // de módulo (ver/crear/editar/eliminar).
+        // 3. Insertar permisos por pestaña (submódulo)
         $modulos = $request->input('submodulos', []);
         foreach ($modulos as $modulo => $subsConcedidos) {
             foreach (Rbac::SUBMODULOS[$modulo] ?? [] as $claveSub => $label) {
@@ -69,7 +80,8 @@ $roles = Rol::orderBy('Nombre_Rol')->get();
 
         Rbac::limpiarCache();
 
-        return back()->with('success', "Permisos actualizados para el rol $nombre.");
+        // Redirigir limpiando el parámetro ?rol= de la URL
+        return redirect()->route('roles.index')->with('success', $mensaje);
     }
 
     public function borrar(Request $request)

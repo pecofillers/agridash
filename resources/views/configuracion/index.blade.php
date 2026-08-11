@@ -11,6 +11,34 @@
 
 <h2 class="page-title mb-4">⚙️ CONFIGURACION Y SEGURIDAD</h2>
 
+{{-- ================= BLOQUE DE ALERTAS GLOBALES ================= --}}
+@if (session('success'))
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <strong>¡Éxito!</strong> {{ session('success') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+@endif
+
+@if (session('error'))
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <strong>¡Error!</strong> {{ session('error') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+@endif
+
+@if ($errors->any())
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <strong>¡Atención! Por favor corrige los siguientes errores:</strong>
+        <ul class="mb-0 mt-2">
+            @foreach ($errors->all() as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+@endif
+{{-- ============================================================== --}}
+
 <div class="card card-dashboard">
     <div class="card-header">
         <ul class="nav nav-tabs card-header-tabs" role="tablist">
@@ -21,17 +49,17 @@
                     </a>
                 </li>
             @endif
-            @if (in_array('credenciales', $submodulos))
-                <li class="nav-item">
-                    <a class="nav-link {{ !in_array('usuarios', $submodulos) ? 'active' : '' }}" data-bs-toggle="tab" href="#tab-credenciales" role="tab">
-                        <i class="bi bi-key"></i> Cambio de Contrasenas
-                    </a>
-                </li>
-            @endif
+            
+            <li class="nav-item">
+                <a class="nav-link {{ !in_array('usuarios', $submodulos) ? 'active' : '' }}" data-bs-toggle="tab" href="#tab-credenciales" role="tab">
+                    <i class="bi bi-key"></i> Cambio de Contraseñas
+                </a>
+            </li>
         </ul>
     </div>
     <div class="card-body">
         <div class="tab-content">
+            
             {{-- ================= SUB-TAB: GESTION DE USUARIOS ================= --}}
             @if (in_array('usuarios', $submodulos))
             <div class="tab-pane fade show active" id="tab-usuarios" role="tabpanel">
@@ -145,36 +173,36 @@
             @endif
 
             {{-- ================= SUB-TAB: CAMBIO DE CONTRASEÑAS ================= --}}
-            @if (in_array('credenciales', $submodulos))
             <div class="tab-pane fade {{ !in_array('usuarios', $submodulos) ? 'show active' : '' }}" id="tab-credenciales" role="tabpanel">
+                
                 {{-- Cambiar mi propia contrasena --}}
-                <h5 class="mb-3">🔑 Cambiar mi Contrasena</h5>
+                <h5 class="mb-3">🔑 Cambiar mi Contraseña</h5>
                 <form method="POST" action="{{ route('configuracion.cambiar_contrasena') }}" class="mb-4">
                     @csrf
                     <div class="row g-3">
                         <div class="col-md-4">
-                            <label class="form-label">Contrasena Actual</label>
+                            <label class="form-label">Contraseña Actual</label>
                             <input type="password" name="password_actual" class="form-control @error('password_actual') is-invalid @enderror" required>
                             @error('password_actual')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label">Nueva Contrasena</label>
+                            <label class="form-label">Nueva Contraseña</label>
                             <input type="password" name="password_nueva" class="form-control @error('password_nueva') is-invalid @enderror" required>
-                            <div class="form-text small">Minimo 8 caracteres, con mayuscula, numero y simbolo.</div>
+                            <div class="form-text small">Mínimo 8 caracteres, con mayúscula, número y símbolo.</div>
                             @error('password_nueva')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label">Confirmar Nueva Contrasena</label>
+                            <label class="form-label">Confirmar Nueva Contraseña</label>
                             <input type="password" name="password_nueva_confirmation" class="form-control @error('password_nueva') is-invalid @enderror" required>
                         </div>
                     </div>
-                    <button class="btn btn-success mt-3">🔒 Cambiar Contrasena</button>
+                    <button class="btn btn-success mt-3">🔒 Cambiar Contraseña</button>
                 </form>
 
+                {{-- Solo Administradores ven la opción de cambiar claves de otros --}}
                 @if ($esAdmin)
                     <hr>
-                    {{-- Restablecer contrasena de otro usuario --}}
-                    <h5 class="mb-3">🔑 Restablecer Contrasena de Usuario</h5>
+                    <h5 class="mb-3">🔑 Restablecer Contraseña de Usuario (Admin)</h5>
                     <form method="POST" action="{{ route('configuracion.restablecer_contrasena') }}">
                         @csrf
                         <div class="row g-3">
@@ -187,24 +215,21 @@
                                 </select>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label">Nueva Contrasena</label>
+                                <label class="form-label">Nueva Contraseña</label>
                                 <input type="password" name="Password" class="form-control @error('Password') is-invalid @enderror" required>
-                                <div class="form-text small">Minimo 8 caracteres, con mayuscula, numero y simbolo.</div>
+                                <div class="form-text small">Mínimo 8 caracteres, con mayúscula, número y símbolo.</div>
                                 @error('Password')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label">Confirmar Contrasena</label>
+                                <label class="form-label">Confirmar Contraseña</label>
                                 <input type="password" name="Password_confirmation" class="form-control" required>
                             </div>
                         </div>
-                        <button class="btn btn-success mt-3">🔒 Actualizar Contrasena</button>
+                        <button class="btn btn-success mt-3">🔒 Actualizar Contraseña</button>
                     </form>
-                @else
-                    <div class="alert alert-info">🔒 Como tu rol no es administrador, solo puedes cambiar tu propia contrasena.</div>
                 @endif
             </div>
-            @endif
-        </div>
+        </div>  
     </div>
 </div>
 @endsection

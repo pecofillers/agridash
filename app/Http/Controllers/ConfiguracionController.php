@@ -92,31 +92,31 @@ class ConfiguracionController extends Controller
     {
         $request->validate([
             'password_actual' => 'required|string',
-            // Regla nativa de Laravel: minima longitud + letras + mayusculas + numeros + simbolos
+            // Regla nativa de Laravel: mínima longitud + letras + mayúsculas + números + símbolos
             'password_nueva' => ['required', 'confirmed', Password::min(8)->letters()->mixedCase()->numbers()->symbols()],
         ]);
 
         /** @var \App\Models\Usuario $usuario */
         $usuario = auth()->user();
 
+        // 1. Verificamos que la clave actual sea correcta
         if (!Hash::check($request->password_actual, $usuario->Password_Hash)) {
-            return back()->with('error', 'La contrasena actual es incorrecta.');
+            return back()->with('error', 'La contraseña actual es incorrecta.');
         }
 
-        // Impedir reutilizar la misma contrasena
+        // 2. Impedimos reutilizar la misma contraseña
         if (Hash::check($request->password_nueva, $usuario->Password_Hash)) {
-            return back()->with('error', 'La nueva contrasena no puede ser igual a la actual.');
+            return back()->with('error', 'La nueva contraseña no puede ser igual a la actual.');
         }
 
-        $usuario->Password_Hash = Hash::make($request->password_nueva);
-        $usuario->Intentos_Fallidos = 0;
-        $usuario->Bloqueado_Hasta = null;
-        $usuario->save();
+        // 3. ACTUALIZACIÓN DIRECTA (A prueba de fallos con llaves primarias personalizadas)
+        Usuario::where('ID_Usuario', $usuario->ID_Usuario)->update([
+            'Password_Hash' => Hash::make($request->password_nueva),
+            'Intentos_Fallidos' => 0,
+            'Bloqueado_Hasta' => null,
+        ]);
 
-        // Regenerar el hash del token de sesion (seguridad nativa tras cambiar credenciales)
-        $request->session()->regenerate();
-
-        return back()->with('success', 'Contrasena actualizada correctamente.');
+        return back()->with('success', 'Tu contraseña ha sido actualizada correctamente.');
     }
 
     /** Restablecer contrasena de otro usuario (solo admin). */
