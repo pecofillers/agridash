@@ -29,21 +29,39 @@ class RendimientoController extends Controller
         $username = $usuario?->Username;
 
         $submodulos = Rbac::submodulosVisibles($rolId, 'rendimiento_colaboradores');
+        
+        // Obtenemos la fecha de hoy para el filtro
+        $hoy = date('Y-m-d'); 
 
         // Colaboradores visibles según rol
         if (in_array($rolNombre, ['ADMIN', 'SUPERADMIN'])) {
             $colaboradores = Colaborador::active()->with('grupo')->get();
             $grupos = Grupo::orderBy('Nombre_Grupo')->get();
+            
+            // AQUÍ EL CAMBIO: Filtramos por la fecha de hoy
+            $rendimientos = RendimientoLabor::with(['colaborador', 'grupo'])
+                ->whereDate('Fecha', $hoy)
+                ->latest('ID_Rendimiento')
+                ->get();
         } else {
             $colaboradores = Colaborador::active()->whereHas('grupo', function ($q) use ($username) {
                 $q->where('Supervisor_Asignado', $username);
             })->with('grupo')->get();
             $grupos = Grupo::where('Supervisor_Asignado', $username)->orderBy('Nombre_Grupo')->get();
+            
+            $gruposIds = $grupos->pluck('ID_Grupo');
+            
+            // AQUÍ EL CAMBIO: Filtramos por los grupos del supervisor Y la fecha de hoy
+            $rendimientos = RendimientoLabor::with(['colaborador', 'grupo'])
+                ->whereIn('ID_Grupo', $gruposIds)
+                ->whereDate('Fecha', $hoy)
+                ->latest('ID_Rendimiento')
+                ->get();
         }
 
         $supervisores = Usuario::pluck('Username');
 
-        return view('rendimiento.index', compact('submodulos', 'colaboradores', 'grupos', 'supervisores', 'rolNombre'));
+        return view('rendimiento.index', compact('submodulos', 'colaboradores', 'grupos', 'supervisores', 'rolNombre', 'rendimientos'));
     }
 
     public function grupos()
@@ -136,7 +154,7 @@ public function registrarLabor(Request $request)
             return back()->with('error', 'Ya existe un registro con el mismo colaborador, fecha, labor y horario.');
         }
 
-        RendimientoLabor::create([
+        $nuevoRegistro = RendimientoLabor::create([
             'Fecha' => $fecha,
             'ID_Colaborador' => $colab->ID_Colaborador,
             'Nombre_Colaborador' => $colab->Nombre_Colaborador,
@@ -151,7 +169,9 @@ public function registrarLabor(Request $request)
             'Rendimiento_Hora' => $rend,
         ]);
 
-        return back()->with('success', 'Registro guardado exitosamente.');
+        return back()
+            ->with('success', 'Registro guardado exitosamente.')
+            ->with('ultimo_registro', $nuevoRegistro);
     }
 
     public function crearGrupo(Request $request)

@@ -9,16 +9,25 @@ class RendimientoLabor extends Model
 {
     use HasFactory;
 
-protected $table = 'fact_rendimientos_labor';
+    protected $table = 'fact_rendimientos_labor';
     protected $primaryKey = 'ID_Rendimiento';
     public $incrementing = true;
     public $timestamps = false;
     protected $keyType = 'int';
 
     protected $fillable = [
-        'Fecha', 'ID_Colaborador', 'Nombre_Colaborador', 'ID_Grupo', 'Supervisor',
-        'Tipo_Labor', 'Unidad_Medida', 'Hora_Inicio', 'Hora_Fin',
-        'Horas_Trabajadas', 'Cantidad', 'Rendimiento_Hora',
+        'Fecha', 
+        'ID_Colaborador', 
+        'Nombre_Colaborador', 
+        'ID_Grupo', 
+        'Supervisor',
+        'Tipo_Labor', 
+        'Unidad_Medida', 
+        'Hora_Inicio', 
+        'Hora_Fin',
+        'Horas_Trabajadas', 
+        'Cantidad', 
+        'Rendimiento_Hora',
     ];
 
     protected $casts = [

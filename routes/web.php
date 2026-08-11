@@ -72,14 +72,18 @@ Route::post('/quitar', [RendimientoController::class, 'quitarColaborador'])->nam
     });
 
 // Configuracion
+    // Configuracion
     Route::middleware('permiso:configuracion,ver')->prefix('configuracion')->name('configuracion.')->group(function () {
-        Route::get('/', [ConfiguracionController::class, 'index'])->name('index')->middleware('check.submodulo:configuracion,usuarios');
+        Route::get('/', [ConfiguracionController::class, 'index'])->name('index');
+        
         // Sub-tab: Gestion de usuarios y estados
         Route::post('/crear-usuario', [ConfiguracionController::class, 'crearUsuario'])->name('crear_usuario')->middleware('check.submodulo:configuracion,usuarios');
         Route::post('/cambiar-estado', [ConfiguracionController::class, 'cambiarEstado'])->name('cambiar_estado')->middleware('check.submodulo:configuracion,usuarios');
         Route::post('/desbloquear', [ConfiguracionController::class, 'desbloquear'])->name('desbloquear')->middleware('check.submodulo:configuracion,usuarios');
+        
         // Sub-tab: Cambio de contrasenas
-        Route::post('/cambiar-contrasena', [ConfiguracionController::class, 'cambiarContrasena'])->name('cambiar_contrasena')->middleware('check.submodulo:configuracion,credenciales');
+        Route::post('/cambiar-contrasena', [ConfiguracionController::class, 'cambiarContrasena'])->name('cambiar_contrasena'); 
+        
         Route::post('/restablecer-contrasena', [ConfiguracionController::class, 'restablecerContrasena'])->name('restablecer_contrasena')->middleware('check.submodulo:configuracion,credenciales');
     });
 });
