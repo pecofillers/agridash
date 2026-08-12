@@ -16,8 +16,13 @@ protected $table = 'fact_produccion';
     protected $keyType = 'int';
 
     protected $fillable = [
-        'Bloque', 'Nave', 'Cama', 'Semana', 'Anio',
+        'ID_Ubicacion', 'Semana', 'Anio',
         'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes',
         'Sabado', 'Domingo', 'Bajas', 'Total',
     ];
+
+    public function ubicacion()
+    {
+        return $this->belongsTo(Ubicacion::class, 'ID_Ubicacion', 'ID_Ubicacion');
+    }
 }

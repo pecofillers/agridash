@@ -33,12 +33,14 @@ Route::middleware(['auth'])->group(function () {
 
 // Rendimiento
     Route::middleware('permiso:rendimiento_colaboradores,ver')->prefix('rendimiento')->name('rendimiento.')->group(function () {
-Route::get('/', [RendimientoController::class, 'index'])->name('index')->middleware('check.submodulo:rendimiento_colaboradores,registro_labor');
+        Route::get('/', [RendimientoController::class, 'index'])->name('index')->middleware('check.submodulo:rendimiento_colaboradores,registro_labor');
         Route::get('/grupos', [RendimientoController::class, 'grupos'])->name('grupos')->middleware('check.submodulo:rendimiento_colaboradores,gestion_grupos');
+        Route::get('/labores', [RendimientoController::class, 'gestionLabores'])->name('labores')->middleware('check.submodulo:rendimiento_colaboradores,gestion_grupos');
+        Route::post('/labores/guardar', [RendimientoController::class, 'guardarLaborCatalogo'])->name('guardarLaborCatalogo')->middleware('check.submodulo:rendimiento_colaboradores,gestion_grupos');
         Route::post('/registrar', [RendimientoController::class, 'registrarLabor'])->name('registrar')->middleware('check.submodulo:rendimiento_colaboradores,registro_labor');
         Route::post('/crear-grupo', [RendimientoController::class, 'crearGrupo'])->name('crearGrupo')->middleware('check.submodulo:rendimiento_colaboradores,gestion_grupos');
-        Route::post('/agregar', [RendimientoController::class, 'agregarColaborador'])->name('agregar')->middleware('check.submodulo:rendimiento_colaboradores,gestion_grupos');
-Route::post('/quitar', [RendimientoController::class, 'quitarColaborador'])->name('quitar')->middleware('check.submodulo:rendimiento_colaboradores,gestion_grupos');
+        Route::post('/agregar', [RendimientoController::class, 'agregarUsuario'])->name('agregar');
+        Route::post('/quitar', [RendimientoController::class, 'quitarUsuario'])->name('quitar');
         Route::post('/actualizar-supervisor', [RendimientoController::class, 'actualizarSupervisorGrupo'])->name('actualizarSupervisor')->middleware('check.submodulo:rendimiento_colaboradores,gestion_grupos');
         Route::get('/reporte', [RendimientoController::class, 'reporte'])->name('reporte')->middleware('check.submodulo:rendimiento_colaboradores,reporte_graficas');
         Route::get('/reporte-semanal', [RendimientoController::class, 'reporteSemanal'])->name('reporteSemanal')->middleware('check.submodulo:rendimiento_colaboradores,reporte_semanal');

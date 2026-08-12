@@ -20,20 +20,20 @@
                 <input type="date" name="Fecha" class="form-control" required value="{{ date('Y-m-d') }}">
             </div>
             <div class="col-md-3">
-                <label class="form-label">👤 Colaborador</label>
-                <select name="ID_Colaborador" class="form-select" required>
-                    @foreach ($colaboradores as $c)
-                        <option value="{{ $c->ID_Colaborador }}">{{ $c->Nombre_Colaborador }} ({{ $c->grupo->Nombre_Grupo ?? 'Sin grupo' }})</option>
+                <label class="form-label">👤 Usuario</label>
+                <select name="ID_Usuario" class="form-select" required>
+                    @foreach ($usuarios as $c)
+                        <option value="{{ $c->ID_Usuario }}">{{ trim(($c->Nombre ?? '') . ' ' . ($c->Apellidos ?? '')) ?: $c->Username }} ({{ $c->grupo->Nombre_Grupo ?? 'Sin grupo' }})</option>
                     @endforeach
                 </select>
             </div>
             <div class="col-md-3">
                 <label class="form-label">✂️ Labor</label>
-                <select name="Tipo_Labor" class="form-select">
-                    <option>DESHOJE</option>
-                    <option>CORTE LIMONIUM</option>
-                    <option>CORTE STATICE</option>
-                    <option>OTRA</option>
+                <select name="ID_Labor" class="form-select" required>
+                    <option value="">-- Seleccione --</option>
+                    @foreach ($labores as $labor)
+                        <option value="{{ $labor->ID_Labor }}">{{ $labor->Nombre_Labor }}</option>
+                    @endforeach
                 </select>
             </div>
         </div>
@@ -84,7 +84,7 @@
             <thead>
                 <tr>
                     <th>Fecha</th>
-                    <th>Colaborador</th>
+                    <th>Usuario</th>
                     <th>Labor</th>
                     <th>Inicio</th>
                     <th>Fin</th>
@@ -95,9 +95,9 @@
             <tbody>
                 @forelse ($rendimientos ?? [] as $item)
                     <tr>
-                        <td>{{ $item->Fecha ? $item->Fecha->format('Y-m-d') : '' }}</td>
-                        <td>{{ $item->colaborador->Nombre_Colaborador ?? $item->Nombre_Colaborador ?? 'N/D' }}</td>
-                        <td><span class="badge bg-secondary">{{ $item->Tipo_Labor }}</span></td>
+                        <td>{{ $item->Fecha ? \Carbon\Carbon::parse($item->Fecha)->format('Y-m-d') : '' }}</td>
+                        <td>{{ $item->usuario ? trim(($item->usuario->Nombre ?? '') . ' ' . ($item->usuario->Apellidos ?? '')) ?: $item->usuario->Username : 'N/D' }}</td>
+                        <td><span class="badge bg-secondary">{{ $item->labor->Nombre_Labor ?? 'N/D' }}</span></td>
                         <td>{{ $item->Hora_Inicio }}</td>
                         <td>{{ $item->Hora_Fin }}</td>
                         <td>{{ number_format($item->Cantidad, 2) }}</td>

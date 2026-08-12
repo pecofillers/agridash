@@ -11,15 +11,15 @@
     <div class="col-md-3">
         <div class="stat-card text-center">
             <div class="stat-icon stat-green mx-auto">👨‍🌾</div>
-            <div class="stat-value">{{ $colaboradoresActivos }}</div>
-            <div class="stat-label">Colaboradores Activos</div>
+            <div class="stat-value">{{ $usuariosActivos }}</div>
+            <div class="stat-label">Usuarios Activos</div>
         </div>
     </div>
     <div class="col-md-3">
         <div class="stat-card text-center">
             <div class="stat-icon stat-blue mx-auto">👥</div>
             <div class="stat-value">{{ $usuarios }}</div>
-            <div class="stat-label">Usuarios del Sistema</div>
+            <div class="stat-label">Total de Usuarios</div>
         </div>
     </div>
     <div class="col-md-3">

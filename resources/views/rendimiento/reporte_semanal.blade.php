@@ -6,6 +6,9 @@
 <style>
     .chart-container { position: relative; width: 100%; margin-bottom: 1.5rem; min-height: 350px; }
     .chart-card { background: var(--secondary-background-color); border: 1px solid rgba(128,128,128,.15); border-radius: 12px; padding: 1.25rem; }
+    .legend-bar { display: flex; gap: 1rem; flex-wrap: wrap; font-size: .85rem; }
+    .dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+    .badge-umbral { font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 4px; }
 </style>
 @endpush
 
@@ -26,45 +29,63 @@
     </form>
 </div>
 
-@if ($semanaSel && $fechaRef)
-    <p class="text-muted">📊 Rendimiento de la semana <strong>{{ $semanaSel }}</strong> (inicia el lunes {{ $fechaRef->format('d/m/Y') }})</p>
-
+@if ($semanaSel && isset($detalle) && count($detalle) > 0)
     @php
-        $labores = ['DESHOJE', 'CORTE LIMONIUM', 'CORTE STATICE'];
-        $u = \App\Http\Controllers\RendimientoController::UMBRALES;
+        // Agrupamos el detalle por Labor para mostrar su respectiva gráfica y su propia tabla de datos
+        $graficasPorLabor = collect($detalle)->groupBy('Tipo_Labor');
+        $umbralMap = collect($laborCatalogo ?? [])->mapWithKeys(function ($item) {
+            return [$item->Nombre_Labor => ['verde' => (float) $item->Umbral_Verde, 'naranja' => (float) $item->Umbral_Naranja]];
+        });
     @endphp
 
-    @foreach ($labores as $lab)
+    @foreach ($graficasPorLabor as $lab => $dataLabor)
         @php
-            $data = $detalle->where('Tipo_Labor', $lab);
-            if ($data->isEmpty()) { continue; }
-            $nombres = $data->pluck('Nombre_Colaborador')->values();
-            $valores = $data->pluck('Rendimiento_Promedio')->values();
-            $colores = $data->pluck('Color')->values();
-            $umbral = $u[$lab] ?? ['verde' => 0, 'naranja' => 0];
+            $uAnno = $umbralMap[$lab] ?? ['verde' => 0, 'naranja' => 0];
         @endphp
-        <div class="chart-card mb-4">
-            <h5 class="mb-3">{{ $lab }} — Semana {{ $semanaSel }}
-                <small class="text-muted">🟢≥{{ $umbral['verde'] }} | 🟠≥{{ $umbral['naranja'] }} | 🔴<{{ $umbral['naranja'] }}</small>
-            </h5>
-            <div class="chart-container">
-                <canvas id="semana-{{ \Illuminate\Support\Str::slug($lab) }}"></canvas>
-            </div>
-        </div>
 
-        <div class="card card-dashboard p-3 mb-4">
-            <h6 class="mb-3">📊 Tabla — {{ $lab }}</h6>
-            <div class="table-responsive">
-                <table class="table table-sm table-hover">
-                    <thead><tr><th>Colaborador</th><th>Total Cantidad</th><th>Total Horas</th><th>Rend. Promedio</th><th>Registros</th></tr></thead>
+        <div class="chart-card mb-4">
+            <h5 class="mb-3">📊 Rendimiento: {{ $lab }}
+                <small class="text-muted">Semana {{ $semanaSel }}</small>
+            </h5>
+            
+            <div class="chart-container">
+                <canvas id="chart-{{ \Illuminate\Support\Str::slug($lab) }}"></canvas>
+            </div>
+            
+            <div class="legend-bar mb-3">
+                <span><span class="dot" style="background:#2e7d32"></span>Óptimo (≥{{ $uAnno['verde'] }})</span>
+                <span><span class="dot" style="background:#f57c00"></span>Medio (≥{{ $uAnno['naranja'] }})</span>
+                <span><span class="dot" style="background:#d32f2f"></span>Bajo (<{{ $uAnno['naranja'] }})</span>
+            </div>
+
+            <div class="table-responsive mt-3">
+                <table class="table table-hover table-sm align-middle bg-white rounded">
+                    <thead>
+                        <tr>
+                            <th>Usuario</th>
+                            <th>Días Trabajados</th>
+                            <th>Total Horas</th>
+                            <th>Producción Total</th>
+                            <th>Rendimiento Promedio</th>
+                            <th>Umbrales de Referencia</th>
+                        </tr>
+                    </thead>
                     <tbody>
-                        @foreach ($data as $d)
+                        @foreach ($dataLabor as $d)
                             <tr>
-                                <td>{{ $d['Nombre_Colaborador'] }}</td>
-                                <td>{{ $d['Total_Cantidad'] }}</td>
-                                <td>{{ $d['Total_Horas'] }} hrs</td>
-                                <td><span style="color:{{ $d['Color'] }};font-weight:bold">{{ $d['Rendimiento_Promedio'] }}</span></td>
+                                <td><strong>{{ $d['Nombre_Usuario'] }}</strong></td>
                                 <td>{{ $d['Registros'] }}</td>
+                                <td>{{ number_format($d['Total_Horas'], 2) }}</td>
+                                <td>{{ number_format($d['Total_Cantidad'], 2) }}</td>
+                                <td>
+                                    <span class="badge" style="background-color: {{ $d['Color'] }}; font-size:0.9rem;">
+                                        {{ number_format($d['Rendimiento_Promedio'], 2) }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge-umbral bg-success text-white" title="Meta Verde">🟢 {{ $uAnno['verde'] }}</span>
+                                    <span class="badge-umbral bg-warning text-dark" title="Mínimo Naranja">🟠 {{ $uAnno['naranja'] }}</span>
+                                </td>
                             </tr>
                         @endforeach
                     </tbody>
@@ -73,32 +94,8 @@
         </div>
     @endforeach
 
-    @if ($detalle->isNotEmpty())
-        <div class="card card-dashboard p-4">
-            <h5 class="mb-3">📋 Detalle Completo de la Semana</h5>
-            <div class="table-responsive">
-                <table class="table table-sm table-hover">
-                    <thead><tr><th>Colaborador</th><th>Labor</th><th>Total Cantidad</th><th>Total Horas</th><th>Rend. Promedio</th><th>Registros</th></tr></thead>
-                    <tbody>
-                        @foreach ($detalle as $d)
-                            <tr>
-                                <td>{{ $d['Nombre_Colaborador'] }}</td>
-                                <td>{{ $d['Tipo_Labor'] }}</td>
-                                <td>{{ $d['Total_Cantidad'] }}</td>
-                                <td>{{ $d['Total_Horas'] }} hrs</td>
-                                <td><span style="color:{{ $d['Color'] ?? '#333' }};font-weight:bold">{{ $d['Rendimiento_Promedio'] }}</span></td>
-                                <td>{{ $d['Registros'] }}</td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    @endif
-@elseif ($semanaSel)
-    <div class="alert alert-info">No hay registros para la semana seleccionada.</div>
-@else
-    <div class="alert alert-info">Selecciona una semana para ver el reporte.</div>
+@elseif($semanaSel)
+    <div class="alert alert-info">No hay datos registrados para la semana seleccionada.</div>
 @endif
 @endsection
 
@@ -106,7 +103,6 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-// Helper: crea un dataset de linea horizontal para marcar un umbral
     function lineaUmbral(valor, color, etiqueta, n) {
         return {
             type: 'line',
@@ -121,56 +117,41 @@ document.addEventListener('DOMContentLoaded', function () {
         };
     }
 
-    @if ($semanaSel && $detalle->isNotEmpty())
-        @foreach ($labores ?? [] as $lab)
+    @if (isset($graficasPorLabor))
+        @foreach ($graficasPorLabor as $lab => $dataLabor)
             @php
-                $data = $detalle->where('Tipo_Labor', $lab);
-                $umbral = $u[$lab] ?? ['verde' => 0, 'naranja' => 0];
-                $numb = $data->count();
+                $uAnno = $umbralMap[$lab] ?? ['verde' => 0, 'naranja' => 0];
+                $numb = count($dataLabor);
             @endphp
-            @if ($data->isNotEmpty())
             (function () {
-                const ctx = document.getElementById('semana-{{ \Illuminate\Support\Str::slug($lab) }}');
+                const ctx = document.getElementById('chart-{{ \Illuminate\Support\Str::slug($lab) }}');
                 if (!ctx) return;
                 const n = {{ $numb }};
                 new Chart(ctx, {
                     type: 'bar',
                     data: {
-                        labels: {!! json_encode($data->pluck('Nombre_Colaborador')->values()) !!},
+                        labels: {!! json_encode(collect($dataLabor)->pluck('Nombre_Usuario')->values()) !!},
                         datasets: [{
                             label: '{{ $lab }} (u/hr)',
-                            data: {!! json_encode($data->pluck('Rendimiento_Promedio')->values()) !!},
-                            backgroundColor: {!! json_encode($data->pluck('Color')->values()) !!},
+                            data: {!! json_encode(collect($dataLabor)->pluck('Rendimiento_Promedio')->values()) !!},
+                            backgroundColor: {!! json_encode(collect($dataLabor)->pluck('Color')->values()) !!},
                             borderRadius: 6,
                         },
-// Linea del objetivo (verde)
-                        lineaUmbral({{ $umbral['verde'] }}, '#2e7d32', 'OBJETIVO {{ $umbral['verde'] }}', n),
-                        // Linea del minimo (naranja)
-                        lineaUmbral({{ $umbral['naranja'] }}, '#f57c00', 'MINIMO {{ $umbral['naranja'] }}', n)
+                        lineaUmbral({{ $uAnno['verde'] }}, '#2e7d32', 'OBJETIVO {{ $uAnno['verde'] }}', n),
+                        lineaUmbral({{ $uAnno['naranja'] }}, '#f57c00', 'MÍNIMO {{ $uAnno['naranja'] }}', n)
                         ]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: {
-                            legend: { display: true },
-                            tooltip: {
-                                callbacks: {
-                                    label: (ctx) => ctx.dataset.label === '{{ $lab }} (u/hr)' ? ctx.raw + ' u/hr' : ctx.dataset.label
-                                }
-                            }
-                        },
+                        plugins: { legend: { display: true } },
                         scales: {
-                            y: {
-                                beginAtZero: true,
-                                grid: { color: 'rgba(128,128,128,.15)' }
-                            },
+                            y: { beginAtZero: true, grid: { color: 'rgba(128,128,128,.15)' } },
                             x: { grid: { display: false } }
                         }
                     }
                 });
             })();
-            @endif
         @endforeach
     @endif
 });

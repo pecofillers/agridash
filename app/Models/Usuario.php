@@ -32,7 +32,7 @@ protected $table = 'dim_usuarios';
 
     protected $fillable = [
         'Username', 'Nombre', 'Apellidos', 'Telefono', 'Correo',
-        'Password_Hash', 'ID_Rol', 'Estado', 'Intentos_Fallidos', 'Bloqueado_Hasta',
+        'Password_Hash', 'ID_Rol', 'ID_Grupo', 'Estado', 'Intentos_Fallidos', 'Bloqueado_Hasta',
     ];
 
     protected $hidden = ['Password_Hash'];
@@ -45,6 +45,16 @@ protected $table = 'dim_usuarios';
     public function rol()
     {
         return $this->belongsTo(Rol::class, 'ID_Rol', 'ID_Rol');
+    }
+
+    public function grupo()
+    {
+        return $this->belongsTo(Grupo::class, 'ID_Grupo', 'ID_Grupo');
+    }
+
+    public function getDisplayNameAttribute(): string
+    {
+        return trim(($this->Nombre ?? '') . ' ' . ($this->Apellidos ?? '')) ?: ($this->Username ?? 'Sin nombre');
     }
 
     public function getAuthPassword()

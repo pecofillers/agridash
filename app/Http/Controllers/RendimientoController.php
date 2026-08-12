@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Colaborador;
 use App\Models\Grupo;
+use App\Models\Labor;
 use App\Models\RendimientoLabor;
 use App\Models\Usuario;
 use App\Support\Rbac;
@@ -13,7 +13,6 @@ use Illuminate\Support\Facades\DB;
 
 class RendimientoController extends Controller
 {
-    // Umbrales de semaforo por labor (replican UMBRALES_SEMAFORO de Python)
     public const UMBRALES = [
         'DESHOJE' => ['verde' => 3.5, 'naranja' => 3],
         'CORTE LIMONIUM' => ['verde' => 300, 'naranja' => 250],
@@ -22,114 +21,136 @@ class RendimientoController extends Controller
 
     public function index()
     {
-        /** @var \App\Models\Usuario $usuario */
-        $usuario = auth()->user();
-        $rolId = $usuario?->ID_Rol;
+        $usuarioAuth = auth()->user();
+        $rolId = $usuarioAuth?->ID_Rol;
         $rolNombre = session('rol_nombre', 'OPERARIO');
-        $username = $usuario?->Username;
+        $username = $usuarioAuth?->Username;
 
         $submodulos = Rbac::submodulosVisibles($rolId, 'rendimiento_colaboradores');
-        
-        // Obtenemos la fecha de hoy para el filtro
-        $hoy = date('Y-m-d'); 
+        $hoy = date('Y-m-d');
 
-        // Colaboradores visibles según rol
-        if (in_array($rolNombre, ['ADMIN', 'SUPERADMIN'])) {
-            $colaboradores = Colaborador::active()->with('grupo')->get();
-            $grupos = Grupo::orderBy('Nombre_Grupo')->get();
-            
-            // Filtramos por la fecha de hoy
-            $rendimientos = RendimientoLabor::with(['colaborador', 'grupo'])
-                ->whereDate('Fecha', $hoy)
-                ->latest('ID_Rendimiento')
-                ->get();
-        } else {
-            $colaboradores = Colaborador::active()->whereHas('grupo', function ($q) use ($username) {
-                $q->where('Supervisor_Asignado', $username);
-            })->with('grupo')->get();
-            $grupos = Grupo::where('Supervisor_Asignado', $username)->orderBy('Nombre_Grupo')->get();
-            
-            $gruposIds = $grupos->pluck('ID_Grupo');
-            
-            // Filtramos por los grupos del supervisor Y la fecha de hoy
-            $rendimientos = RendimientoLabor::with(['colaborador', 'grupo'])
-                ->whereIn('ID_Grupo', $gruposIds)
-                ->whereDate('Fecha', $hoy)
-                ->latest('ID_Rendimiento')
-                ->get();
+        $query = Usuario::with('grupo')->where('Estado', 'ACTIVO');
+
+        if (!in_array($rolNombre, ['ADMIN', 'SUPERADMIN'])) {
+            $gruposSupervisor = $this->gruposDelSupervisor($username);
+            $query->whereIn('ID_Grupo', $gruposSupervisor);
         }
 
-        // AQUÍ EL CAMBIO: Filtramos para traer únicamente los usuarios con rol SUPERVISOR
-        $supervisores = Usuario::whereHas('rol', function ($query) {
-            $query->where('Nombre_Rol', 'SUPERVISOR');
+        $usuarios = $query->orderBy('Nombre')->orderBy('Apellidos')->get();
+        $grupos = Grupo::with('usuarios')->orderBy('Nombre_Grupo')->get();
+        $labores = Labor::orderBy('Nombre_Labor')->get();
+
+        $rendimientos = RendimientoLabor::with(['usuario', 'grupo', 'labor'])
+            ->whereDate('Fecha', $hoy)
+            ->latest('ID_Rendimiento')
+            ->get();
+
+        $supervisores = Usuario::whereHas('rol', function ($q) {
+            $q->where('Nombre_Rol', 'SUPERVISOR');
         })->pluck('Username');
 
-        return view('rendimiento.index', compact('submodulos', 'colaboradores', 'grupos', 'supervisores', 'rolNombre', 'rendimientos'));
+        return view('rendimiento.index', compact('submodulos', 'usuarios', 'grupos', 'supervisores', 'rolNombre', 'rendimientos', 'labores'));
     }
 
     public function grupos()
     {
-        /** @var \App\Models\Usuario $usuario */
-        $usuario = auth()->user();
-        $rolId = $usuario?->ID_Rol;
+        $usuarioAuth = auth()->user();
+        $rolId = $usuarioAuth?->ID_Rol;
         $rolNombre = session('rol_nombre', 'OPERARIO');
-        $username = $usuario?->Username;
+        $username = $usuarioAuth?->Username;
 
         $submodulos = Rbac::submodulosVisibles($rolId, 'rendimiento_colaboradores');
 
-        if (in_array($rolNombre, ['ADMIN', 'SUPERADMIN'])) {
-            $colaboradores = Colaborador::with('grupo')->orderBy('Nombre_Colaborador')->get();
-            $grupos = Grupo::orderBy('Nombre_Grupo')->get();
-        } else {
-            $colaboradores = Colaborador::whereHas('grupo', function ($q) use ($username) {
-                $q->where('Supervisor_Asignado', $username);
-            })->with('grupo')->get();
-            $grupos = Grupo::where('Supervisor_Asignado', $username)->orderBy('Nombre_Grupo')->get();
+        $queryUsuarios = Usuario::with('grupo')->where('Estado', 'ACTIVO');
+        if (!in_array($rolNombre, ['ADMIN', 'SUPERADMIN'])) {
+            $gruposSupervisor = $this->gruposDelSupervisor($username);
+            $queryUsuarios->whereIn('ID_Grupo', $gruposSupervisor);
         }
 
-        // AQUÍ EL CAMBIO: Filtramos para traer únicamente los usuarios con rol SUPERVISOR
-        $supervisores = Usuario::whereHas('rol', function ($query) {
-            $query->where('Nombre_Rol', 'SUPERVISOR');
+        $usuarios = $queryUsuarios->orderBy('Nombre')->orderBy('Apellidos')->get();
+        $grupos = Grupo::with('usuarios')->orderBy('Nombre_Grupo')->get();
+        
+        $supervisores = Usuario::whereHas('rol', function ($q) {
+            $q->where('Nombre_Rol', 'SUPERVISOR');
         })->pluck('Username');
 
-        // AQUÍ EL CAMBIO: Obtenemos solo los colaboradores activos que NO tienen grupo
-        $colaboradoresSinGrupo = Colaborador::where('Estado', 'ACTIVO')
-            ->whereNull('ID_Grupo')
-            ->orderBy('Nombre_Colaborador')
-            ->get();
+        $usuariosSinGrupo = Usuario::with('grupo')->where('Estado', 'ACTIVO')->whereNull('ID_Grupo')->orderBy('Nombre')->orderBy('Apellidos')->get();
 
-        // Agregamos la nueva variable compact('...','colaboradoresSinGrupo',...)
-        return view('rendimiento.grupos', compact('submodulos', 'colaboradores', 'grupos', 'supervisores', 'colaboradoresSinGrupo', 'rolNombre'));
+        return view('rendimiento.grupos', compact('submodulos', 'usuarios', 'grupos', 'supervisores', 'usuariosSinGrupo', 'rolNombre'));
     }
+
+    public function gestionLabores(Request $request)
+    {
+        $labores = Labor::orderBy('Nombre_Labor')->get();
+        
+        $laborSeleccionada = null;
+        if ($request->has('editar')) {
+            $laborSeleccionada = Labor::find($request->editar);
+        }
+
+        return view('rendimiento.labores', compact('labores', 'laborSeleccionada'));
+    }
+
+    public function guardarLaborCatalogo(Request $request)
+    {
+        $request->validate([
+            'ID_Labor' => 'nullable|integer|exists:dim_labores,ID_Labor',
+            'Nombre_Labor' => 'required|string|max:100',
+            'Unidad_Medida' => 'required|string|max:50',
+            'Umbral_Verde' => 'required|numeric|min:0',
+            'Umbral_Naranja' => 'required|numeric|min:0',
+        ]);
+
+        if ($request->filled('ID_Labor')) {
+            // Modo Edición
+            $labor = Labor::findOrFail($request->ID_Labor);
+            $labor->update([
+                'Nombre_Labor' => trim($request->Nombre_Labor),
+                'Unidad_Medida' => trim($request->Unidad_Medida),
+                'Umbral_Verde' => (float) $request->Umbral_Verde,
+                'Umbral_Naranja' => (float) $request->Umbral_Naranja,
+            ]);
+            $mensaje = 'Labor actualizada correctamente.';
+        } else {
+            // Modo Creación
+            Labor::create([
+                'Nombre_Labor' => trim($request->Nombre_Labor),
+                'Unidad_Medida' => trim($request->Unidad_Medida),
+                'Umbral_Verde' => (float) $request->Umbral_Verde,
+                'Umbral_Naranja' => (float) $request->Umbral_Naranja,
+            ]);
+            $mensaje = 'Labor registrada correctamente.';
+        }
+
+        return redirect()->route('rendimiento.labores')->with('success', $mensaje);
+    }
+
+
 
     public function registrarLabor(Request $request)
     {
         $request->validate([
             'Fecha' => 'required|date',
-            'ID_Colaborador' => 'required|integer',
-            'Tipo_Labor' => 'required|string',
+            'ID_Usuario' => 'required|integer|exists:dim_usuarios,ID_Usuario',
+            'ID_Labor' => 'required|integer|exists:dim_labores,ID_Labor',
             'Hora_Inicio' => ['required', 'regex:/^\d{2}:\d{2}$/'],
             'Hora_Fin' => ['required', 'regex:/^\d{2}:\d{2}$/'],
             'Cantidad' => 'required|numeric|min:0.01',
         ]);
 
         $rolNombre = session('rol_nombre', 'OPERARIO');
-        /** @var \App\Models\Usuario|null $usuario */
-        $usuario = auth()->user();
-        $username = $usuario?->Username;
+        $usuarioAuth = auth()->user();
+        $username = $usuarioAuth?->Username;
 
-        $colab = Colaborador::with('grupo')->findOrFail($request->ID_Colaborador);
+        $usuarioAsignado = Usuario::with('grupo')->findOrFail($request->ID_Usuario);
 
-        // Punto 2: Validar que el colaborador pertenezca al grupo del supervisor
-        // (solo aplica a roles no administradores).
         if (!in_array($rolNombre, ['ADMIN', 'SUPERADMIN'])) {
             $grupos = $this->gruposDelSupervisor($username);
-            if (!$colab->ID_Grupo || !in_array($colab->ID_Grupo, $grupos, true)) {
-                return back()->with('error', 'Solo puedes registrar labor de colaboradores de tu propio grupo.');
+            if (!$usuarioAsignado->ID_Grupo || !in_array($usuarioAsignado->ID_Grupo, $grupos, true)) {
+                return back()->with('error', 'Solo puedes registrar labores para usuarios de tu grupo asignado.');
             }
         }
 
-        // Punto 1: Calcular horas correctamente con fecha (soporta cruce de medianoche).
         $fecha = Carbon::parse($request->Fecha)->toDateString();
 
         try {
@@ -139,7 +160,6 @@ class RendimientoController extends Controller
             return back()->with('error', 'Formato de hora invalido.');
         }
 
-        // Si la hora de fin es menor que la de inicio, asumimos cruce de medianoche.
         if ($tFin->lt($tInicio)) {
             $tFin->addDay();
         }
@@ -147,34 +167,28 @@ class RendimientoController extends Controller
         $horas = $tInicio->diffInSeconds($tFin) / 3600.0;
         $cantidad = (float) $request->Cantidad;
 
-        // Validar condiciones de negocio (igual que Python: horas>0 y cantidad>0)
         if ($horas <= 0 || $cantidad <= 0) {
             return back()->with('error', 'Verifica las horas y que la cantidad sea mayor a cero.');
         }
 
-        $unidad = $request->Tipo_Labor === 'DESHOJE' ? 'CUADROS' : 'TALLOS';
         $rend = round($cantidad / $horas, 2);
 
-        // Evitar duplicados
         $existe = RendimientoLabor::where('Fecha', $fecha)
-            ->where('ID_Colaborador', $request->ID_Colaborador)
-            ->where('Tipo_Labor', $request->Tipo_Labor)
+            ->where('ID_Usuario', $request->ID_Usuario)
+            ->where('ID_Labor', $request->ID_Labor)
             ->where('Hora_Inicio', $request->Hora_Inicio)
             ->where('Hora_Fin', $request->Hora_Fin)
             ->exists();
 
         if ($existe) {
-            return back()->with('error', 'Ya existe un registro con el mismo colaborador, fecha, labor y horario.');
+            return back()->with('error', 'Ya existe un registro con el mismo usuario, fecha, labor y horario.');
         }
 
         $nuevoRegistro = RendimientoLabor::create([
             'Fecha' => $fecha,
-            'ID_Colaborador' => $colab->ID_Colaborador,
-            'Nombre_Colaborador' => $colab->Nombre_Colaborador,
-            'ID_Grupo' => $colab->ID_Grupo,
-            'Supervisor' => $colab->grupo?->Supervisor_Asignado,
-            'Tipo_Labor' => $request->Tipo_Labor,
-            'Unidad_Medida' => $unidad,
+            'ID_Usuario' => $request->ID_Usuario,
+            'ID_Grupo' => $usuarioAsignado->ID_Grupo,
+            'ID_Labor' => $request->ID_Labor, 
             'Hora_Inicio' => $request->Hora_Inicio,
             'Hora_Fin' => $request->Hora_Fin,
             'Horas_Trabajadas' => round($horas, 2),
@@ -194,37 +208,34 @@ class RendimientoController extends Controller
             'Supervisor_Asignado' => 'required|string',
         ]);
 
+        $supervisor = Usuario::where('Username', $request->Supervisor_Asignado)->first();
+
         Grupo::create([
             'Nombre_Grupo' => strtoupper(trim($request->Nombre_Grupo)),
-            'Supervisor_Asignado' => $request->Supervisor_Asignado,
+            'ID_Supervisor' => $supervisor->ID_Usuario ?? null,
         ]);
 
         return back()->with('success', 'Grupo creado correctamente.');
     }
 
-    // AQUÍ EL CAMBIO: Ahora en lugar de crear, actualizamos al colaborador usando el selector.
-    public function agregarColaborador(Request $request)
+    public function agregarUsuario(Request $request)
     {
         $request->validate([
-            'ID_Colaborador' => 'required|integer|exists:dim_colaboradores,ID_Colaborador',
+            'ID_Usuario' => 'required|integer|exists:dim_usuarios,ID_Usuario',
             'ID_Grupo' => 'required|integer|exists:dim_grupos,ID_Grupo',
         ]);
 
-        // Actualizamos el colaborador existente asignándole el nuevo ID_Grupo
-        Colaborador::where('ID_Colaborador', $request->ID_Colaborador)
-            ->update(['ID_Grupo' => $request->ID_Grupo]);
-
-        return back()->with('success', 'Persona asignada al grupo exitosamente.');
+        Usuario::where('ID_Usuario', $request->ID_Usuario)->update(['ID_Grupo' => $request->ID_Grupo]);
+        return back()->with('success', 'Usuario asignado al grupo exitosamente.');
     }
 
-    public function quitarColaborador(Request $request)
+    public function quitarUsuario(Request $request)
     {
-        $request->validate(['ID_Colaborador' => 'required|integer']);
-        Colaborador::where('ID_Colaborador', $request->ID_Colaborador)->update(['ID_Grupo' => null]);
-        return back()->with('success', 'Colaborador removido del grupo.');
+        $request->validate(['ID_Usuario' => 'required|integer']);
+        Usuario::where('ID_Usuario', $request->ID_Usuario)->update(['ID_Grupo' => null]);
+        return back()->with('success', 'Usuario removido del grupo.');
     }
 
-    // Punto 5: Reasignar supervisor de un grupo (replica el data_editor del Python).
     public function actualizarSupervisorGrupo(Request $request)
     {
         $request->validate([
@@ -232,88 +243,79 @@ class RendimientoController extends Controller
             'Supervisor_Asignado' => 'required|string|max:50',
         ]);
 
+        $supervisor = Usuario::where('Username', $request->Supervisor_Asignado)->first();
+
         Grupo::where('ID_Grupo', $request->ID_Grupo)->update([
-            'Supervisor_Asignado' => $request->Supervisor_Asignado,
+            'ID_Supervisor' => $supervisor->ID_Usuario ?? null,
         ]);
 
         return back()->with('success', 'Supervisor del grupo actualizado correctamente.');
     }
 
-    // ------------------------------------------------------------------
-    // Helpers internos (replican acceso por rol de Python)
-    // ------------------------------------------------------------------
-
-    /** IDs de grupo que administra el supervisor actual. */
-    private function gruposDelSupervisor(?string $supervisor): array
+    private function gruposDelSupervisor(?string $supervisorUser): array
     {
-        if (!$supervisor) {
-            return [];
-        }
-        return Grupo::where('Supervisor_Asignado', $supervisor)->pluck('ID_Grupo')->all();
+        if (!$supervisorUser) return [];
+        $usuario = Usuario::where('Username', $supervisorUser)->first();
+        if (!$usuario) return [];
+        return Grupo::where('ID_Supervisor', $usuario->ID_Usuario)->pluck('ID_Grupo')->all();
     }
 
-    /** Consulta base de rendimientos con filtro de rol, labor y persona. */
-    private function queryReporte(
-        string $fechaDesde,
-        string $fechaHasta,
-        string $rolNombre,
-        ?string $username,
-        string $labor = 'TODAS',
-        string $colaborador = 'TODOS'
-    ) {
+    private function queryReporte($fechaDesde, $fechaHasta, $rolNombre, $username, $labor, $usuarioFiltro) 
+    {
         $q = RendimientoLabor::query()->whereBetween('Fecha', [$fechaDesde, $fechaHasta]);
 
         if (!in_array($rolNombre, ['ADMIN', 'SUPERADMIN'])) {
             $grupos = $this->gruposDelSupervisor($username);
-            if (!$grupos) {
-                return collect(); // sin grupos asignados -> vacio
-            }
+            if (!$grupos) return collect();
             $q->whereIn('ID_Grupo', $grupos);
         }
 
         if ($labor !== 'TODAS') {
-            $q->where('Tipo_Labor', $labor);
+            $q->whereHas('labor', function($query) use ($labor) {
+                $query->where('Nombre_Labor', $labor);
+            });
         }
 
-        if ($colaborador !== 'TODOS') {
-            $q->where('Nombre_Colaborador', $colaborador);
+        if ($usuarioFiltro !== 'TODOS') {
+            $q->whereHas('usuario', function($query) use ($usuarioFiltro) {
+                $query->whereRaw("TRIM(CONCAT(IFNULL(Nombre, ''), ' ', IFNULL(Apellidos, ''))) = ?", [$usuarioFiltro])
+                      ->orWhere('Username', $usuarioFiltro);
+            });
         }
 
         return $q;
     }
 
-    /** Lista de colaboradores visibles (para filtro de persona). */
-    private function colaboradoresVisibles(): array
+    private function usuariosVisibles(): array
     {
         $rolNombre = session('rol_nombre', 'OPERARIO');
-        /** @var \App\Models\Usuario|null $usuario */
-        $usuario = auth()->user();
-        $username = $usuario?->Username;
+        $usuarioAuth = auth()->user();
+        $username = $usuarioAuth?->Username;
 
-        if (in_array($rolNombre, ['ADMIN', 'SUPERADMIN'])) {
-            return Colaborador::active()->orderBy('Nombre_Colaborador')->pluck('Nombre_Colaborador')->unique()->all();
+        $query = Usuario::where('Estado', 'ACTIVO');
+
+        if (!in_array($rolNombre, ['ADMIN', 'SUPERADMIN'])) {
+            $grupos = $this->gruposDelSupervisor($username);
+            $query->whereIn('ID_Grupo', $grupos);
         }
 
-        $grupos = $this->gruposDelSupervisor($username);
-        return Colaborador::active()->whereIn('ID_Grupo', $grupos)
-            ->orderBy('Nombre_Colaborador')->pluck('Nombre_Colaborador')->unique()->all();
+        return $query->get()
+            ->map(fn ($u) => trim(($u->Nombre ?? '') . ' ' . ($u->Apellidos ?? '')) ?: $u->Username)
+            ->unique()
+            ->values()
+            ->all();
     }
 
-    // ------------------------------------------------------------------
-    // REPORTE Y GRAFICAS (semáforo con umbrales fijos)
-    // ------------------------------------------------------------------
     public function reporte(Request $request)
     {
         $rolNombre = session('rol_nombre', 'OPERARIO');
-        /** @var \App\Models\Usuario|null $usuario */
-        $usuario = auth()->user();
-        $username = $usuario?->Username;
+        $usuarioAuth = auth()->user();
+        $username = $usuarioAuth?->Username;
 
         $filtroTiempo = $request->input('periodo', 'Esta Semana');
         $filtroLabor = $request->input('labor', 'TODAS');
         $filtroPersona = $request->input('persona', 'TODOS');
 
-        // Calcular rango de fechas segun periodo
         $hoy = Carbon::today();
         $fechaInicio = $hoy->copy()->startOfWeek();
         $fechaFin = $hoy->copy();
@@ -330,30 +332,29 @@ class RendimientoController extends Controller
         $fechaFinStr = $fechaFin->toDateString();
 
         $registros = $this->queryReporte($fechaInicioStr, $fechaFinStr, $rolNombre, $username, $filtroLabor, $filtroPersona)
+            ->with(['usuario', 'labor']) 
             ->orderByDesc('Fecha')
             ->orderByDesc('Hora_Inicio')
             ->get();
 
-        // Meta segun labor (para grafica individual)
         $meta = 15.0;
-        foreach (self::UMBRALES as $lab => $u) {
-            if ($lab === $filtroLabor) {
-                $meta = $u['verde'];
+        $catalogoLabores = Labor::orderBy('Nombre_Labor')->get();
+        foreach ($catalogoLabores as $l) {
+            if ($l->Nombre_Labor === $filtroLabor) {
+                $meta = (float) $l->Umbral_Verde;
+                break;
             }
         }
 
-        $colaboradores = $this->colaboradoresVisibles();
+        $usuariosFiltro = $this->usuariosVisibles();
 
-        // Punto 3: Histórico diario individual (cuando se filtra por persona).
-        // Replica la lógica del Python: agrupa por fecha y calcula rendimiento medio del día.
         $historicoDiario = collect();
         if ($filtroPersona !== 'TODOS' && $registros->isNotEmpty()) {
             $historicoDiario = $registros
-                ->where('Nombre_Colaborador', $filtroPersona)
-                ->groupBy(fn ($r) => $r->Fecha->toDateString())
+                ->groupBy(fn ($r) => Carbon::parse($r->Fecha)->toDateString())
                 ->map(function ($regs) {
                     return [
-                        'fecha' => $regs->first()->Fecha->format('d/m'),
+                        'fecha' => Carbon::parse($regs->first()->Fecha)->format('d/m'),
                         'rend' => round($regs->avg('Rendimiento_Hora'), 1),
                     ];
                 })
@@ -361,20 +362,15 @@ class RendimientoController extends Controller
                 ->values();
         }
 
-        return view('rendimiento.reporte', compact('registros', 'filtroTiempo', 'filtroLabor', 'filtroPersona', 'fechaInicioStr', 'fechaFinStr', 'meta', 'colaboradores', 'historicoDiario'));
+        return view('rendimiento.reporte', compact('registros', 'filtroTiempo', 'filtroLabor', 'filtroPersona', 'fechaInicioStr', 'fechaFinStr', 'meta', 'usuariosFiltro', 'historicoDiario', 'catalogoLabores'));
     }
 
-    // ------------------------------------------------------------------
-    // REPORTE SEMANAL POR COLABORADOR
-    // ------------------------------------------------------------------
     public function reporteSemanal(Request $request)
     {
         $rolNombre = session('rol_nombre', 'OPERARIO');
-        /** @var \App\Models\Usuario|null $usuario */
-        $usuario = auth()->user();
-        $username = $usuario?->Username;
+        $usuarioAuth = auth()->user();
+        $username = $usuarioAuth?->Username;
 
-        // Semanas disponibles
         $semanaSel = $request->input('semana');
         $semanas = $this->semanasDisponibles($rolNombre, $username);
 
@@ -389,27 +385,36 @@ class RendimientoController extends Controller
             $base = $this->queryReporteBaseSemana($anio, $semana, $rolNombre, $username);
 
             if ($base) {
-                $registros = $base->orderBy('Fecha')->orderBy('Hora_Inicio')->get();
+                $registros = $base->with(['usuario', 'labor'])->orderBy('Fecha')->orderBy('Hora_Inicio')->get();
 
-                // Grupo por colaborador y labor
-                $resumen = $registros->groupBy('Nombre_Colaborador')->map(function ($regs) {
+                $resumen = $registros->groupBy(function($r) {
+                    return trim(($r->usuario->Nombre ?? '') . ' ' . ($r->usuario->Apellidos ?? '')) ?: ($r->usuario->Username ?? 'Desconocido');
+                })->map(function ($regs) {
                     return $this->agruparPorLabor($regs);
                 });
 
-                $detalle = $registros->groupBy(['Nombre_Colaborador', 'Tipo_Labor'])->map(function ($regs) {
+                $detalle = $registros->groupBy([
+                    function($r) {
+                        return trim(($r->usuario->Nombre ?? '') . ' ' . ($r->usuario->Apellidos ?? '')) ?: ($r->usuario->Username ?? 'Desconocido');
+                    },
+                    function($r) {
+                        return $r->labor->Nombre_Labor ?? 'Sin Labor';
+                    }
+                ])->map(function ($regs) {
                     return $regs->map(function ($laborRegs) {
                         return $this->calcularResumenLabor($laborRegs);
                     });
                 })->flatten(1)->values();
 
-                // Obtener el lunes de la semana ISO (año, semana, día=1 => lunes)
                 $dt = new \DateTime();
                 $dt->setISODate($anio, $semana, 1);
                 $fechaRef = Carbon::instance($dt);
             }
         }
 
-        return view('rendimiento.reporte_semanal', compact('semanas', 'semanaSel', 'resumen', 'detalle', 'fechaRef'));
+        $laborCatalogo = Labor::orderBy('Nombre_Labor')->get();
+
+        return view('rendimiento.reporte_semanal', compact('semanas', 'semanaSel', 'resumen', 'detalle', 'fechaRef', 'laborCatalogo'));
     }
 
     private function semanasDisponibles(string $rolNombre, ?string $username): array
@@ -418,14 +423,11 @@ class RendimientoController extends Controller
 
         if (!in_array($rolNombre, ['ADMIN', 'SUPERADMIN'])) {
             $grupos = $this->gruposDelSupervisor($username);
-            if (!$grupos) {
-                return [];
-            }
+            if (!$grupos) return [];
             $base->whereIn('ID_Grupo', $grupos);
         }
 
         $rows = $base->orderByDesc('Anio')->orderByDesc('Semana')->get();
-
         return $rows->map(fn ($r) => sprintf('%04d-S%02d', $r->Anio, $r->Semana))->values()->all();
     }
 
@@ -437,19 +439,18 @@ class RendimientoController extends Controller
 
         if (!in_array($rolNombre, ['ADMIN', 'SUPERADMIN'])) {
             $grupos = $this->gruposDelSupervisor($username);
-            if (!$grupos) {
-                return null;
-            }
+            if (!$grupos) return null;
             $q->whereIn('ID_Grupo', $grupos);
         }
 
         return $q;
     }
 
-    /** Agrupa registros de un colaborador por labor con resumen. */
     private function agruparPorLabor($registros)
     {
-        return $registros->groupBy('Tipo_Labor')->map(function ($regs) {
+        return $registros->groupBy(function($r) {
+            return $r->labor->Nombre_Labor ?? 'Sin Labor';
+        })->map(function ($regs) {
             return $this->calcularResumenLabor($regs);
         })->values();
     }
@@ -460,27 +461,33 @@ class RendimientoController extends Controller
         $sumHoras = $regs->sum('Horas_Trabajadas');
         $promedio = $regs->count() ? round($regs->avg('Rendimiento_Hora'), 1) : 0;
 
+        $first = $regs->first();
+        $nombreUsuario = trim(($first->usuario->Nombre ?? '') . ' ' . ($first->usuario->Apellidos ?? '')) ?: ($first->usuario->Username ?? 'Desconocido');
+        
+        $laborModel = $first->labor;
+        $nombreLabor = $laborModel->Nombre_Labor ?? 'Sin Labor';
+
         return [
-            'Nombre_Colaborador' => $regs->first()->Nombre_Colaborador,
-            'Tipo_Labor' => $regs->first()->Tipo_Labor,
+            'Nombre_Usuario' => $nombreUsuario,
+            'Tipo_Labor' => $nombreLabor,
             'Total_Cantidad' => round($sumCantidad, 1),
             'Total_Horas' => round($sumHoras, 2),
             'Rendimiento_Promedio' => $promedio,
             'Registros' => $regs->count(),
-            'Color' => $this->colorSemaforo($promedio, $regs->first()->Tipo_Labor),
+            'Color' => $this->colorSemaforo($promedio, $laborModel),
         ];
     }
 
-    /** Devuelve el color del semáforo segun umbrales fijos. */
-    private function colorSemaforo(float $rend, string $labor): string
+    private function colorSemaforo(float $rend, $laborModel): string
     {
-        $u = self::UMBRALES[$labor] ?? ['verde' => 0, 'naranja' => 0];
-        if ($rend >= $u['verde']) {
-            return '#2e7d32';
-        }
-        if ($rend >= $u['naranja']) {
-            return '#f57c00';
+        if ($laborModel) {
+            if ($rend >= (float) $laborModel->Umbral_Verde) return '#2e7d32';
+            if ($rend >= (float) $laborModel->Umbral_Naranja) return '#f57c00';
+            return '#d32f2f';
         }
         return '#d32f2f';
     }
+
+    
 }
+

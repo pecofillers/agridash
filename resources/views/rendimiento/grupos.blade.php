@@ -3,7 +3,12 @@
 @section('title', 'Gestion de Grupos')
 
 @section('content')
-<h2 class="page-title mb-4">👥 GESTION DE GRUPOS Y EQUIPO</h2>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="page-title">👥 GESTION DE GRUPOS Y EQUIPO</h2>
+    <a href="{{ route('rendimiento.labores') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-wrench"></i> Catalogo de Labores
+    </a>
+</div>
 
 <div class="card card-dashboard p-4 mb-4">
     <h5>➕ Crear Nuevo Grupo</h5>
@@ -27,14 +32,14 @@
 </div>
 
 <div class="card card-dashboard p-4 mb-4">
-    <h5>👤 Asignar Persona a un Grupo</h5>
+    <h5>👤 Asignar Usuario a un Grupo</h5>
     <form method="POST" action="{{ route('rendimiento.agregar') }}" class="row g-2">
         @csrf
         <div class="col-md-5">
-            <select name="ID_Colaborador" class="form-select" required>
-                <option value="">-- Seleccione persona sin grupo --</option>
-                @foreach ($colaboradoresSinGrupo as $colab)
-                    <option value="{{ $colab->ID_Colaborador }}">{{ $colab->Nombre_Colaborador }}</option>
+            <select name="ID_Usuario" class="form-select" required>
+                <option value="">-- Seleccione Usuario sin grupo --</option>
+                @foreach ($usuariosSinGrupo as $colab)
+                    <option value="{{ $colab->ID_Usuario }}">{{ trim(($colab->Nombre ?? '') . ' ' . ($colab->Apellidos ?? '')) ?: $colab->Username }}</option>
                 @endforeach
             </select>
         </div>
@@ -80,7 +85,7 @@
                                 {{ $g->Supervisor_Asignado ?? 'N/A' }}
                             @endif
                         </td>
-                        <td>{{ $colaboradores->where('ID_Grupo', $g->ID_Grupo)->count() }} integrantes</td>
+                        <td>{{ $usuarios->where('ID_Grupo', $g->ID_Grupo)->count() }} integrantes</td>
                     </tr>
                 @empty
                     <tr><td colspan="3" class="text-center">No hay grupos registrados.</td></tr>
@@ -91,21 +96,21 @@
 </div>
 
 <div class="card card-dashboard p-4">
-    <h5>👥 Colaboradores por Grupo</h5>
+    <h5>👥 Usuarios por Grupo</h5>
     <div class="table-responsive">
         <table class="table table-hover table-sm">
-            <thead><tr><th>Colaborador</th><th>Grupo</th><th>Supervisor</th><th>Accion</th></tr></thead>
+            <thead><tr><th>Usuario</th><th>Grupo</th><th>Supervisor</th><th>Accion</th></tr></thead>
             <tbody>
-                @foreach ($colaboradores as $c)
+                @foreach ($usuarios as $c)
                     <tr>
-                        <td>{{ $c->Nombre_Colaborador }}</td>
+                        <td>{{ trim(($c->Nombre ?? '') . ' ' . ($c->Apellidos ?? '')) ?: $c->Username }}</td>
                         <td>{{ $c->grupo->Nombre_Grupo ?? 'Sin asignar' }}</td>
                         <td>{{ $c->grupo->Supervisor_Asignado ?? 'N/A' }}</td>
                         <td>
                             @if ($c->ID_Grupo)
                                 <form method="POST" action="{{ route('rendimiento.quitar') }}" class="d-inline">
                                     @csrf
-                                    <input type="hidden" name="ID_Colaborador" value="{{ $c->ID_Colaborador }}">
+                                    <input type="hidden" name="ID_Usuario" value="{{ $c->ID_Usuario }}">
                                     <button class="btn btn-sm btn-outline-danger">❌ Quitar</button>
                                 </form>
                             @endif

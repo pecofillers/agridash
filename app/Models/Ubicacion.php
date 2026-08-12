@@ -17,6 +17,16 @@ class Ubicacion extends Model
 
     protected $fillable = ['Bloque', 'Nave', 'Cama', 'Estado'];
 
+    public function siembras()
+    {
+        return $this->hasMany(Siembra::class, 'ID_Ubicacion', 'ID_Ubicacion');
+    }
+
+    public function producciones()
+    {
+        return $this->hasMany(Produccion::class, 'ID_Ubicacion', 'ID_Ubicacion');
+    }
+
     public static function bloques()
     {
         return self::query()->select('Bloque')->distinct()->orderBy('Bloque')->pluck('Bloque');
