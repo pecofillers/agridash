@@ -13,7 +13,8 @@
             <input type="text" name="Nombre_Grupo" class="form-control" placeholder="Nombre del grupo (ej: GRUPO 4)" required>
         </div>
         <div class="col-md-5">
-            <select name="Supervisor_Asignado" class="form-select">
+            <select name="Supervisor_Asignado" class="form-select" required>
+                <option value="">-- Seleccione un Supervisor --</option>
                 @foreach ($supervisores as $s)
                     <option value="{{ $s }}">{{ $s }}</option>
                 @endforeach
@@ -30,10 +31,16 @@
     <form method="POST" action="{{ route('rendimiento.agregar') }}" class="row g-2">
         @csrf
         <div class="col-md-5">
-            <input type="text" name="Nombre_Colaborador" class="form-control" placeholder="Nombre del colaborador" required>
+            <select name="ID_Colaborador" class="form-select" required>
+                <option value="">-- Seleccione persona sin grupo --</option>
+                @foreach ($colaboradoresSinGrupo as $colab)
+                    <option value="{{ $colab->ID_Colaborador }}">{{ $colab->Nombre_Colaborador }}</option>
+                @endforeach
+            </select>
         </div>
         <div class="col-md-5">
             <select name="ID_Grupo" class="form-select" required>
+                <option value="">-- Seleccione el Grupo --</option>
                 @foreach ($grupos as $g)
                     <option value="{{ $g->ID_Grupo }}">{{ $g->Nombre_Grupo }}</option>
                 @endforeach
