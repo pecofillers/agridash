@@ -38,7 +38,7 @@ class RendimientoController extends Controller
             $colaboradores = Colaborador::active()->with('grupo')->get();
             $grupos = Grupo::orderBy('Nombre_Grupo')->get();
             
-            // AQUÍ EL CAMBIO: Filtramos por la fecha de hoy
+            // Filtramos por la fecha de hoy
             $rendimientos = RendimientoLabor::with(['colaborador', 'grupo'])
                 ->whereDate('Fecha', $hoy)
                 ->latest('ID_Rendimiento')
@@ -51,7 +51,7 @@ class RendimientoController extends Controller
             
             $gruposIds = $grupos->pluck('ID_Grupo');
             
-            // AQUÍ EL CAMBIO: Filtramos por los grupos del supervisor Y la fecha de hoy
+            // Filtramos por los grupos del supervisor Y la fecha de hoy
             $rendimientos = RendimientoLabor::with(['colaborador', 'grupo'])
                 ->whereIn('ID_Grupo', $gruposIds)
                 ->whereDate('Fecha', $hoy)
@@ -59,7 +59,10 @@ class RendimientoController extends Controller
                 ->get();
         }
 
-        $supervisores = Usuario::pluck('Username');
+        // AQUÍ EL CAMBIO: Filtramos para traer únicamente los usuarios con rol SUPERVISOR
+        $supervisores = Usuario::whereHas('rol', function ($query) {
+            $query->where('Nombre_Rol', 'SUPERVISOR');
+        })->pluck('Username');
 
         return view('rendimiento.index', compact('submodulos', 'colaboradores', 'grupos', 'supervisores', 'rolNombre', 'rendimientos'));
     }
@@ -84,12 +87,22 @@ class RendimientoController extends Controller
             $grupos = Grupo::where('Supervisor_Asignado', $username)->orderBy('Nombre_Grupo')->get();
         }
 
-        $supervisores = Usuario::pluck('Username');
+        // AQUÍ EL CAMBIO: Filtramos para traer únicamente los usuarios con rol SUPERVISOR
+        $supervisores = Usuario::whereHas('rol', function ($query) {
+            $query->where('Nombre_Rol', 'SUPERVISOR');
+        })->pluck('Username');
 
-        return view('rendimiento.grupos', compact('submodulos', 'colaboradores', 'grupos', 'supervisores', 'rolNombre'));
+        // AQUÍ EL CAMBIO: Obtenemos solo los colaboradores activos que NO tienen grupo
+        $colaboradoresSinGrupo = Colaborador::where('Estado', 'ACTIVO')
+            ->whereNull('ID_Grupo')
+            ->orderBy('Nombre_Colaborador')
+            ->get();
+
+        // Agregamos la nueva variable compact('...','colaboradoresSinGrupo',...)
+        return view('rendimiento.grupos', compact('submodulos', 'colaboradores', 'grupos', 'supervisores', 'colaboradoresSinGrupo', 'rolNombre'));
     }
 
-public function registrarLabor(Request $request)
+    public function registrarLabor(Request $request)
     {
         $request->validate([
             'Fecha' => 'required|date',
@@ -189,23 +202,22 @@ public function registrarLabor(Request $request)
         return back()->with('success', 'Grupo creado correctamente.');
     }
 
+    // AQUÍ EL CAMBIO: Ahora en lugar de crear, actualizamos al colaborador usando el selector.
     public function agregarColaborador(Request $request)
     {
         $request->validate([
-            'Nombre_Colaborador' => 'required|string',
-            'ID_Grupo' => 'required|integer',
+            'ID_Colaborador' => 'required|integer|exists:dim_colaboradores,ID_Colaborador',
+            'ID_Grupo' => 'required|integer|exists:dim_grupos,ID_Grupo',
         ]);
 
-        Colaborador::create([
-            'Nombre_Colaborador' => $request->Nombre_Colaborador,
-            'ID_Grupo' => $request->ID_Grupo,
-            'Estado' => 'ACTIVO',
-        ]);
+        // Actualizamos el colaborador existente asignándole el nuevo ID_Grupo
+        Colaborador::where('ID_Colaborador', $request->ID_Colaborador)
+            ->update(['ID_Grupo' => $request->ID_Grupo]);
 
-        return back()->with('success', 'Persona asignada al grupo.');
+        return back()->with('success', 'Persona asignada al grupo exitosamente.');
     }
 
-public function quitarColaborador(Request $request)
+    public function quitarColaborador(Request $request)
     {
         $request->validate(['ID_Colaborador' => 'required|integer']);
         Colaborador::where('ID_Colaborador', $request->ID_Colaborador)->update(['ID_Grupo' => null]);
@@ -322,7 +334,7 @@ public function quitarColaborador(Request $request)
             ->orderByDesc('Hora_Inicio')
             ->get();
 
-// Meta segun labor (para grafica individual)
+        // Meta segun labor (para grafica individual)
         $meta = 15.0;
         foreach (self::UMBRALES as $lab => $u) {
             if ($lab === $filtroLabor) {
@@ -384,13 +396,13 @@ public function quitarColaborador(Request $request)
                     return $this->agruparPorLabor($regs);
                 });
 
-$detalle = $registros->groupBy(['Nombre_Colaborador', 'Tipo_Labor'])->map(function ($regs) {
+                $detalle = $registros->groupBy(['Nombre_Colaborador', 'Tipo_Labor'])->map(function ($regs) {
                     return $regs->map(function ($laborRegs) {
                         return $this->calcularResumenLabor($laborRegs);
                     });
                 })->flatten(1)->values();
 
-// Obtener el lunes de la semana ISO (año, semana, día=1 => lunes)
+                // Obtener el lunes de la semana ISO (año, semana, día=1 => lunes)
                 $dt = new \DateTime();
                 $dt->setISODate($anio, $semana, 1);
                 $fechaRef = Carbon::instance($dt);
