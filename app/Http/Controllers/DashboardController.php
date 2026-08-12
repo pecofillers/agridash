@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Colaborador;
 use App\Models\Grupo;
 use App\Models\Produccion;
 use App\Models\RendimientoLabor;
@@ -22,11 +21,11 @@ public function index()
         $menu = Rbac::menuPorRol($rolId);
 
         // Estadisticas basicas para el dashboard
-        $colaboradoresActivos = Colaborador::where('Estado', 'ACTIVO')->count();
+        $usuariosActivos = Usuario::count();
         $usuarios = Usuario::count();
         $grupos = Grupo::count();
         $ubicaciones = Ubicacion::count();
 
-        return view('dashboard', compact('menu', 'colaboradoresActivos', 'usuarios', 'grupos', 'ubicaciones'));
+        return view('dashboard', compact('menu', 'usuariosActivos', 'usuarios', 'grupos', 'ubicaciones'));
     }
 }

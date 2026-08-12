@@ -2,27 +2,22 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class RendimientoLabor extends Model
 {
-    use HasFactory;
-
     protected $table = 'fact_rendimientos_labor';
     protected $primaryKey = 'ID_Rendimiento';
-    public $incrementing = true;
     public $timestamps = false;
     protected $keyType = 'int';
 
     protected $fillable = [
         'Fecha', 
-        'ID_Colaborador', 
-        'Nombre_Colaborador', 
+        'ID_Usuario',     // <--- Cambiado de ID_Colaborador a ID_Usuario
         'ID_Grupo', 
-        'Supervisor',
-        'Tipo_Labor', 
-        'Unidad_Medida', 
+        'ID_Labor', 
+        'ID_Ubicacion', 
+        'ID_Siembra',
         'Hora_Inicio', 
         'Hora_Fin',
         'Horas_Trabajadas', 
@@ -30,18 +25,15 @@ class RendimientoLabor extends Model
         'Rendimiento_Hora',
     ];
 
-    protected $casts = [
-        'Fecha' => 'date',
-        'Hora_Inicio' => 'string',
-        'Hora_Fin' => 'string',
-        'Horas_Trabajadas' => 'decimal:2',
-        'Cantidad' => 'decimal:2',
-        'Rendimiento_Hora' => 'decimal:2',
-    ];
-
-    public function colaborador()
+    // Ahora la relación se llama "usuario"
+    public function usuario()
     {
-        return $this->belongsTo(Colaborador::class, 'ID_Colaborador', 'ID_Colaborador');
+        return $this->belongsTo(Usuario::class, 'ID_Usuario', 'ID_Usuario');
+    }
+
+    public function labor()
+    {
+        return $this->belongsTo(Labor::class, 'ID_Labor', 'ID_Labor');
     }
 
     public function grupo()

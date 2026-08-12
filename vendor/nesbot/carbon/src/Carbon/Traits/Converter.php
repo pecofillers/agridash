@@ -102,7 +102,7 @@ trait Converter
      */
     public function toDateString(): string
     {
-        return $this->rawFormat('Y-m-d');
+        return $this->rawformat('Y-m-d');
     }
 
     /**

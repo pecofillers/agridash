@@ -1,0 +1,1 @@
+{"version":2,"defects":{"Tests\\Unit\\RendimientoControllerTest::test_color_semaforo_handles_null_labor_gracefully":8},"times":{"Tests\\Unit\\RendimientoControllerTest::test_color_semaforo_handles_null_labor_gracefully":0.456}}

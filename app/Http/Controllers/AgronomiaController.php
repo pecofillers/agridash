@@ -11,51 +11,41 @@ class AgronomiaController extends Controller
 {
     public function index()
     {
-        $bloques = Ubicacion::bloques();
+        $ubicaciones = Ubicacion::orderBy('Bloque')->orderBy('Nave')->orderBy('Cama')->get();
         $variedades = Variedad::orderBy('Nombre_Variedad')->get();
         $historial = collect();
 
-        $bloque = request('bloque');
-        $nave = request('nave');
-        $cama = request('cama');
+        $idUbicacion = request('ID_Ubicacion');
 
-        if ($bloque && $nave && $cama) {
-            $historial = Siembra::where('Bloque', $bloque)
-                ->where('Nave', $nave)
-                ->where('Cama', $cama)
-                ->with('variedad')
+        if ($idUbicacion) {
+            $historial = Siembra::where('ID_Ubicacion', $idUbicacion)
+                ->with('variedad', 'ubicacion')
                 ->orderBy('Fecha_Siembra')
                 ->get();
         }
 
-        return view('agronomia.index', compact('bloques', 'variedades', 'historial', 'bloque', 'nave', 'cama'));
+        return view('agronomia.index', compact('ubicaciones', 'variedades', 'historial', 'idUbicacion'));
     }
 
     public function registrarSiembra(Request $request)
     {
         $request->validate([
-            'Bloque' => 'required|string',
-            'Nave' => 'required|string',
-            'Cama' => 'required|string',
+            'ID_Ubicacion' => 'required|integer|exists:dim_ubicaciones,ID_Ubicacion',
             'ID_Variedad' => 'required|integer',
             'Fecha_Siembra' => 'required|date',
             'Cantidad_Plantas' => 'required|integer|min:1',
             'Metros_Lineales' => 'required|numeric|min:0.1',
         ]);
 
-        // Cerrar siembra activa de esta cama
-        Siembra::where('Bloque', $request->Bloque)
-            ->where('Nave', $request->Nave)
-            ->where('Cama', $request->Cama)
+        // Cerrar siembra activa de esta ubicación
+        Siembra::where('ID_Ubicacion', $request->ID_Ubicacion)
             ->whereNull('Fecha_Fin')
             ->update(['Fecha_Fin' => now()]);
 
         $densidad = $request->Cantidad_Plantas / $request->Metros_Lineales;
 
         Siembra::create([
-            'Bloque' => $request->Bloque,
-            'Nave' => $request->Nave,
-            'Cama' => $request->Cama,
+            'ID_Ubicacion' => $request->ID_Ubicacion,
             'ID_Variedad' => $request->ID_Variedad,
             'Fecha_Siembra' => $request->Fecha_Siembra,
             'Cantidad_Plantas' => $request->Cantidad_Plantas,

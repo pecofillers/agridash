@@ -17,8 +17,13 @@ class Grupo extends Model
 
     protected $fillable = ['Nombre_Grupo', 'Supervisor_Asignado'];
 
-    public function colaboradores()
+    public function usuarios()
     {
-        return $this->hasMany(Colaborador::class, 'ID_Grupo', 'ID_Grupo');
+        return $this->hasMany(Usuario::class, 'ID_Grupo', 'ID_Grupo');
+    }
+
+    public function supervisor()
+    {
+        return $this->belongsTo(Usuario::class, 'Supervisor_Asignado', 'Username');
     }
 }

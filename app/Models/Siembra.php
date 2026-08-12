@@ -16,7 +16,7 @@ class Siembra extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'Bloque', 'Nave', 'Cama', 'ID_Variedad', 'Fecha_Siembra',
+        'ID_Ubicacion', 'ID_Variedad', 'Fecha_Siembra',
         'Fecha_Fin', 'Cantidad_Plantas', 'Metros_Lineales', 'Densidad_Plantacion',
     ];
 
@@ -30,5 +30,10 @@ class Siembra extends Model
     public function variedad()
     {
         return $this->belongsTo(Variedad::class, 'ID_Variedad', 'ID_Variedad');
+    }
+
+    public function ubicacion()
+    {
+        return $this->belongsTo(Ubicacion::class, 'ID_Ubicacion', 'ID_Ubicacion');
     }
 }

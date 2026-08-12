@@ -10,47 +10,34 @@ class ProduccionController extends Controller
 {
 public function index()
     {
-        $bloques = Ubicacion::bloques();
-        $naves = collect();
-        $camas = collect();
+        $ubicaciones = Ubicacion::orderBy('Bloque')->orderBy('Nave')->orderBy('Cama')->get();
         $registros = collect();
 
-        $bloque = request('bloque');
-        $nave = request('nave');
+        $idUbicacion = request('ID_Ubicacion');
+        $semana = request('semana');
+        $anio = request('anio');
 
-        if ($bloque) {
-            $naves = Ubicacion::naves($bloque);
+        if ($idUbicacion) {
+            $query = Produccion::where('ID_Ubicacion', $idUbicacion);
+            if ($semana) {
+                $query->where('Semana', $semana);
+            }
+            if ($anio) {
+                $query->where('Anio', $anio);
+            }
+            $registros = $query->with('ubicacion')->orderBy('Semana')->get();
         }
-        if ($bloque && $nave) {
-            $camas = Ubicacion::camas($bloque, $nave);
-            $registros = Produccion::where('Bloque', $bloque)->where('Nave', $nave)->orderBy('Semana')->get();
-        }
 
-        return view('produccion.index', compact('bloques', 'naves', 'camas', 'registros', 'bloque', 'nave'));
-    }
+        // Obtenemos las labores dinámicas
+        $labores = \App\Models\Labor::orderBy('Nombre_Labor')->get();
 
-    /** Metodo auxiliar para que las vistas iteren pluck como valores simples. */
-    public function bloques()
-    {
-        return Ubicacion::bloques();
-    }
-
-    public function naves($bloque)
-    {
-        return Ubicacion::naves($bloque);
-    }
-
-    public function camas($bloque, $nave)
-    {
-        return Ubicacion::camas($bloque, $nave);
+        return view('rendimiento.index', compact('submodulos', 'colaboradores', 'grupos', 'supervisores', 'rolNombre', 'rendimientos', 'labores'));
     }
 
     public function guardar(Request $request)
     {
         $request->validate([
-            'Bloque' => 'required|string',
-            'Nave' => 'required|string',
-            'Cama' => 'required|string',
+            'ID_Ubicacion' => 'required|integer|exists:dim_ubicaciones,ID_Ubicacion',
             'Semana' => 'required|integer|min:1|max:53',
             'Anio' => 'required|integer',
         ]);
@@ -64,7 +51,7 @@ public function index()
             $total += $v;
         }
 
-        Produccion::create(array_merge($request->only(['Bloque', 'Nave', 'Cama', 'Semana', 'Anio']), $valores, ['Total' => $total]));
+        Produccion::create(array_merge($request->only(['ID_Ubicacion', 'Semana', 'Anio']), $valores, ['Total' => $total]));
 
         return back()->with('success', 'Registro guardado exitosamente.');
     }

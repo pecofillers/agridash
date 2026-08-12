@@ -10,6 +10,7 @@
             'reporte_graficas' => ['rendimiento.reporte', 'Reporte y Graficas'],
             'reporte_semanal' => ['rendimiento.reporteSemanal', 'Reporte Semanal'],
             'gestion_grupos' => ['rendimiento.grupos', 'Gestion de Grupos'],
+            'gestion_labores' => ['rendimiento.labores', 'Catalogo de Labores'],
         ],
         'registro_produccion' => [
             'registro' => ['produccion.index', 'Ingresar Registro'],
