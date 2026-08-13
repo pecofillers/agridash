@@ -21,7 +21,9 @@
             <select name="Supervisor_Asignado" class="form-select" required>
                 <option value="">-- Seleccione un Supervisor --</option>
                 @foreach ($supervisores as $s)
-                    <option value="{{ $s }}">{{ $s }}</option>
+                    <option value="{{ $s->Username }}">
+                        {{ trim(($s->Nombre ?? '') . ' ' . ($s->Apellidos ?? '')) ?: $s->Username }}
+                    </option>
                 @endforeach
             </select>
         </div>
@@ -76,7 +78,9 @@
                                     <input type="hidden" name="ID_Grupo" value="{{ $g->ID_Grupo }}">
                                     <select name="Supervisor_Asignado" class="form-select form-select-sm">
                                         @foreach ($supervisores as $s)
-                                            <option value="{{ $s }}" {{ $g->Supervisor_Asignado == $s ? 'selected' : '' }}>{{ $s }}</option>
+                                            <option value="{{ $s->Username }}" {{ $g->Supervisor_Asignado == $s->Username ? 'selected' : '' }}>
+                                                {{ trim(($s->Nombre ?? '') . ' ' . ($s->Apellidos ?? '')) ?: $s->Username }}
+                                            </option>
                                         @endforeach
                                     </select>
                                     <button class="btn btn-sm btn-outline-primary">💾 Reasignar</button>

@@ -45,9 +45,9 @@ class RendimientoController extends Controller
             ->latest('ID_Rendimiento')
             ->get();
 
-        $supervisores = Usuario::whereHas('rol', function ($q) {
-            $q->where('Nombre_Rol', 'SUPERVISOR');
-        })->pluck('Username');
+        $supervisores = Usuario::whereHas('rol', function ($query) {
+            $query->where('Nombre_Rol', 'SUPERVISOR');
+        })->orderBy('Nombre')->get();
 
         return view('rendimiento.index', compact('submodulos', 'usuarios', 'grupos', 'supervisores', 'rolNombre', 'rendimientos', 'labores'));
     }
@@ -70,9 +70,9 @@ class RendimientoController extends Controller
         $usuarios = $queryUsuarios->orderBy('Nombre')->orderBy('Apellidos')->get();
         $grupos = Grupo::with('usuarios')->orderBy('Nombre_Grupo')->get();
         
-        $supervisores = Usuario::whereHas('rol', function ($q) {
-            $q->where('Nombre_Rol', 'SUPERVISOR');
-        })->pluck('Username');
+        $supervisores = Usuario::whereHas('rol', function ($query) {
+            $query->where('Nombre_Rol', 'SUPERVISOR');
+        })->orderBy('Nombre')->get();
 
         $usuariosSinGrupo = Usuario::with('grupo')->where('Estado', 'ACTIVO')->whereNull('ID_Grupo')->orderBy('Nombre')->orderBy('Apellidos')->get();
 
