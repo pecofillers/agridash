@@ -44,6 +44,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/actualizar-supervisor', [RendimientoController::class, 'actualizarSupervisorGrupo'])->name('actualizarSupervisor')->middleware('check.submodulo:rendimiento_colaboradores,gestion_grupos');
         Route::get('/reporte', [RendimientoController::class, 'reporte'])->name('reporte')->middleware('check.submodulo:rendimiento_colaboradores,reporte_graficas');
         Route::get('/reporte-semanal', [RendimientoController::class, 'reporteSemanal'])->name('reporteSemanal')->middleware('check.submodulo:rendimiento_colaboradores,reporte_semanal');
+        Route::put('/actualizar/{id}', [RendimientoController::class, 'actualizarLabor'])->name('actualizar');
     });
 
 // Agronomia
