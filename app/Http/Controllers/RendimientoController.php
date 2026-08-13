@@ -19,7 +19,7 @@ class RendimientoController extends Controller
         'CORTE STATICE' => ['verde' => 400, 'naranja' => 350],
     ];
 
-    public function index()
+    public function index(Request $request)
     {
         $usuarioAuth = auth()->user();
         $rolId = $usuarioAuth?->ID_Rol;
@@ -29,27 +29,89 @@ class RendimientoController extends Controller
         $submodulos = Rbac::submodulosVisibles($rolId, 'rendimiento_colaboradores');
         $hoy = date('Y-m-d');
 
-        $query = Usuario::with('grupo')->where('Estado', 'ACTIVO');
+        $queryUsuarios = Usuario::with('grupo')->where('Estado', 'ACTIVO');
+        $queryRendimientos = RendimientoLabor::with(['usuario', 'grupo', 'labor'])
+            ->whereDate('Fecha', $hoy);
 
+        // Si NO es Administrador ni Superadmin, filtramos exclusivamente por los grupos del supervisor
         if (!in_array($rolNombre, ['ADMIN', 'SUPERADMIN'])) {
             $gruposSupervisor = $this->gruposDelSupervisor($username);
-            $query->whereIn('ID_Grupo', $gruposSupervisor);
+            
+            $queryUsuarios->whereIn('ID_Grupo', $gruposSupervisor);
+            $queryRendimientos->whereIn('ID_Grupo', $gruposSupervisor);
         }
 
-        $usuarios = $query->orderBy('Nombre')->orderBy('Apellidos')->get();
+        $usuarios = $queryUsuarios->orderBy('Nombre')->orderBy('Apellidos')->get();
         $grupos = Grupo::with('usuarios')->orderBy('Nombre_Grupo')->get();
         $labores = Labor::orderBy('Nombre_Labor')->get();
 
-        $rendimientos = RendimientoLabor::with(['usuario', 'grupo', 'labor'])
-            ->whereDate('Fecha', $hoy)
-            ->latest('ID_Rendimiento')
-            ->get();
+        $rendimientos = $queryRendimientos->latest('ID_Rendimiento')->get();
 
         $supervisores = Usuario::whereHas('rol', function ($query) {
             $query->where('Nombre_Rol', 'SUPERVISOR');
         })->orderBy('Nombre')->get();
 
         return view('rendimiento.index', compact('submodulos', 'usuarios', 'grupos', 'supervisores', 'rolNombre', 'rendimientos', 'labores'));
+    }
+
+    public function actualizarLabor(Request $request, $id)
+    {
+        $request->validate([
+            'Fecha' => 'required|date',
+            'ID_Usuario' => 'required|integer|exists:dim_usuarios,ID_Usuario',
+            'ID_Labor' => 'required|integer|exists:dim_labores,ID_Labor',
+            'Hora_Inicio' => ['required', 'regex:/^\d{2}:\d{2}$/'],
+            'Hora_Fin' => ['required', 'regex:/^\d{2}:\d{2}$/'],
+            'Cantidad' => 'required|numeric|min:0.01',
+        ]);
+
+        $registro = RendimientoLabor::findOrFail($id);
+        $rolNombre = session('rol_nombre', 'OPERARIO');
+        $usuarioAuth = auth()->user();
+
+        if (!in_array($rolNombre, ['ADMIN', 'SUPERADMIN'])) {
+            $grupos = $this->gruposDelSupervisor($usuarioAuth?->Username);
+            if (!in_array($registro->ID_Grupo, $grupos, true)) {
+                return back()->with('error', 'No tienes permisos para modificar este registro.');
+            }
+        }
+
+        $usuarioAsignado = Usuario::findOrFail($request->ID_Usuario);
+        $fecha = Carbon::parse($request->Fecha)->toDateString();
+
+        try {
+            $tInicio = Carbon::parse($fecha . ' ' . $request->Hora_Inicio);
+            $tFin = Carbon::parse($fecha . ' ' . $request->Hora_Fin);
+        } catch (\Exception $e) {
+            return back()->with('error', 'Formato de hora inválido.');
+        }
+
+        if ($tFin->lt($tInicio)) {
+            $tFin->addDay();
+        }
+
+        $horas = $tInicio->diffInSeconds($tFin) / 3600.0;
+        $cantidad = (float) $request->Cantidad;
+
+        if ($horas <= 0 || $cantidad <= 0) {
+            return back()->with('error', 'Verifica las horas y que la cantidad sea mayor a cero.');
+        }
+
+        $rend = round($cantidad / $horas, 2);
+
+        $registro->update([
+            'Fecha' => $fecha,
+            'ID_Usuario' => $request->ID_Usuario,
+            'ID_Grupo' => $usuarioAsignado->ID_Grupo ?? $registro->ID_Grupo,
+            'ID_Labor' => $request->ID_Labor,
+            'Hora_Inicio' => $request->Hora_Inicio,
+            'Hora_Fin' => $request->Hora_Fin,
+            'Horas_Trabajadas' => round($horas, 2),
+            'Cantidad' => $cantidad,
+            'Rendimiento_Hora' => $rend,
+        ]);
+
+        return back()->with('success', 'Registro actualizado correctamente.');
     }
 
     public function grupos()
@@ -124,8 +186,6 @@ class RendimientoController extends Controller
 
         return redirect()->route('rendimiento.labores')->with('success', $mensaje);
     }
-
-
 
     public function registrarLabor(Request $request)
     {
