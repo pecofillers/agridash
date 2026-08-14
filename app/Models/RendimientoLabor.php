@@ -13,11 +13,10 @@ class RendimientoLabor extends Model
 
     protected $fillable = [
         'Fecha', 
-        'ID_Usuario',     // <--- Cambiado de ID_Colaborador a ID_Usuario
+        'ID_Usuario',
         'ID_Grupo', 
         'ID_Labor', 
         'ID_Ubicacion', 
-        'ID_Siembra',
         'Hora_Inicio', 
         'Hora_Fin',
         'Horas_Trabajadas', 
@@ -39,5 +38,10 @@ class RendimientoLabor extends Model
     public function grupo()
     {
         return $this->belongsTo(Grupo::class, 'ID_Grupo', 'ID_Grupo');
+    }
+
+    public function detalles()
+    {
+        return $this->hasMany(RendimientoDetalle::class, 'ID_Rendimiento', 'ID_Rendimiento');
     }
 }

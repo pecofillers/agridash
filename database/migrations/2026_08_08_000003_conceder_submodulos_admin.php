@@ -15,13 +15,13 @@ return new class extends Migration
     {
         $submodulos = [
             'vista_gerencial' => ['ver'],
-            'rendimiento_colaboradores' => ['registro_labor', 'reporte_graficas', 'reporte_semanal', 'gestion_grupos'],
+            'rendimiento_colaboradores' => ['registro_labor', 'reporte_graficas', 'reporte_semanal', 'gestion_grupos', 'labores'],
             'registro_produccion' => ['registro', 'editar'],
             'agronomia' => ['historial', 'siembra', 'variedades'],
             'configuracion' => ['usuarios', 'credenciales'],
             'administracion_ubicaciones' => ['crear', 'listado'],
-            'gestion_usuarios' => ['registrar', 'directorio'],
-            'administracion_roles' => ['editar', 'crear', 'eliminar'],
+            'gestion_usuarios' => ['directorio'],
+            'administracion_roles' => ['roles'],
         ];
 
         $roles = DB::table('dim_roles')->whereIn('Nombre_Rol', ['ADMIN', 'SUPERADMIN'])->get();

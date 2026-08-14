@@ -41,12 +41,34 @@
     @foreach ($graficasPorLabor as $lab => $dataLabor)
         @php
             $uAnno = $umbralMap[$lab] ?? ['verde' => 0, 'naranja' => 0];
+            
+            // Calculamos el total de variantes de esta labor para toda la semana
+            $totalesVariantesLabor = [];
+            foreach($dataLabor as $d) {
+                if(!empty($d['Variantes'])) {
+                    foreach($d['Variantes'] as $vName => $vCant) {
+                        if(!isset($totalesVariantesLabor[$vName])) $totalesVariantesLabor[$vName] = 0;
+                        $totalesVariantesLabor[$vName] += $vCant;
+                    }
+                }
+            }
         @endphp
 
         <div class="chart-card mb-4">
             <h5 class="mb-3">📊 Rendimiento: {{ $lab }}
                 <small class="text-muted">Semana {{ $semanaSel }}</small>
             </h5>
+
+            @if(count($totalesVariantesLabor) > 0)
+                <div class="d-flex flex-wrap gap-2 align-items-center mb-3 p-2 bg-light border rounded">
+                    <strong class="text-dark small m-0">🌸 ACUMULADO SEMANAL:</strong>
+                    @foreach($totalesVariantesLabor as $name => $total)
+                        <span class="badge border" style="background-color: #fff; color: #333; border-color: #ccc !important; font-size: 0.85rem;">
+                            {{ $name }}: <span style="color: #2e7d32; font-weight: bold;">{{ number_format($total, 2) }}</span>
+                        </span>
+                    @endforeach
+                </div>
+            @endif
             
             <div class="chart-container">
                 <canvas id="chart-{{ \Illuminate\Support\Str::slug($lab) }}"></canvas>
@@ -76,7 +98,18 @@
                                 <td><strong>{{ $d['Nombre_Usuario'] }}</strong></td>
                                 <td>{{ $d['Registros'] }}</td>
                                 <td>{{ number_format($d['Total_Horas'], 2) }}</td>
-                                <td>{{ number_format($d['Total_Cantidad'], 2) }}</td>
+                                <td>
+                                    <strong>{{ number_format($d['Total_Cantidad'], 2) }}</strong>
+                                    @if(!empty($d['Variantes']))
+                                        <div class="mt-1">
+                                            @foreach($d['Variantes'] as $vName => $vCant)
+                                                <span class="badge bg-light text-dark border me-1" style="font-size: 0.7rem;">
+                                                    {{ $vName }}: {{ number_format($vCant, 0) }}
+                                                </span>
+                                            @endforeach
+                                        </div>
+                                    @endif
+                                </td>
                                 <td>
                                     <span class="badge" style="background-color: {{ $d['Color'] }}; font-size:0.9rem;">
                                         {{ number_format($d['Rendimiento_Promedio'], 2) }}

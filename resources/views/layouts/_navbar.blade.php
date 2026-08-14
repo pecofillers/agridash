@@ -26,13 +26,10 @@
             'listado' => ['ubicaciones.index', 'Ver Estructura'],
         ],
         'gestion_usuarios' => [
-            'registrar' => ['usuarios.index', 'Registrar Usuario'],
             'directorio' => ['usuarios.index', 'Directorio'],
         ],
         'administracion_roles' => [
-            'editar' => ['roles.index', 'Editar Permisos'],
-            'crear' => ['roles.index', 'Crear Rol'],
-            'eliminar' => ['roles.index', 'Borrar Rol'],
+            'editar' => ['roles.index', 'Permisos de roles'],
         ],
     ];
 
