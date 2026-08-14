@@ -54,9 +54,12 @@ class Rbac
         ],
         'gestion_usuarios' => [
             'directorio' => 'Directorio de Usuarios',
+            'registrar' => 'Registrar Nuevo Usuario',
         ],
         'administracion_roles' => [
             'editar' => 'Permisos de Roles',
+            'crear' => 'Crear Nuevo Rol',
+            'eliminar' => 'Borrar Rol Sin Uso',
         ],
     ];
 
