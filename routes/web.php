@@ -45,6 +45,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/reporte', [RendimientoController::class, 'reporte'])->name('reporte')->middleware('check.submodulo:rendimiento_colaboradores,reporte_graficas');
         Route::get('/reporte-semanal', [RendimientoController::class, 'reporteSemanal'])->name('reporteSemanal')->middleware('check.submodulo:rendimiento_colaboradores,reporte_semanal');
         Route::put('/actualizar/{id}', [RendimientoController::class, 'actualizarLabor'])->name('actualizar');
+        Route::delete('/eliminar/{id}', [RendimientoController::class, 'eliminarLabor'])->name('eliminar');
+        Route::delete('/labores/eliminar/{id}', [RendimientoController::class, 'eliminarLaborCatalogo'])->name('eliminarLaborCatalogo')->middleware('check.submodulo:rendimiento_colaboradores,gestion_grupos');
     });
 
 // Agronomia
@@ -61,11 +63,11 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/estado', [UsuariosController::class, 'cambiarEstado'])->name('estado')->middleware('check.submodulo:gestion_usuarios,directorio');
     });
 
-    // Roles
-    Route::middleware('permiso:administracion_roles,ver')->prefix('roles')->name('roles.')->group(function () {
-        Route::get('/', [RolesController::class, 'index'])->name('index')->middleware('check.submodulo:administracion_roles,editar');
-        Route::post('/guardar', [RolesController::class, 'guardar'])->name('guardar')->middleware('check.submodulo:administracion_roles,editar');
-        Route::post('/borrar', [RolesController::class, 'borrar'])->name('borrar')->middleware('check.submodulo:administracion_roles,eliminar');
+    // Roles     
+    Route::middleware('permiso:administracion_roles,ver')->prefix('roles')->name('roles.')->group(function () {         
+        Route::get('/', [RolesController::class, 'index'])->name('index')->middleware('check.submodulo:administracion_roles,editar');         
+        Route::post('/guardar', [RolesController::class, 'guardar'])->name('guardar')->middleware('check.submodulo:administracion_roles,editar');         
+        Route::post('/borrar', [RolesController::class, 'borrar'])->name('borrar')->middleware('check.submodulo:administracion_roles,eliminar');     
     });
 
     // Ubicaciones

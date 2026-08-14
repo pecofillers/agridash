@@ -5,9 +5,6 @@
 @section('content')
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="page-title">👥 GESTION DE GRUPOS Y EQUIPO</h2>
-    <a href="{{ route('rendimiento.labores') }}" class="btn btn-outline-secondary">
-        <i class="bi bi-wrench"></i> Catalogo de Labores
-    </a>
 </div>
 
 <div class="card card-dashboard p-4 mb-4">

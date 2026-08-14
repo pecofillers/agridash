@@ -33,6 +33,7 @@ class Rbac
             'reporte_graficas' => 'Reporte y Graficas',
             'reporte_semanal' => 'Reporte Semanal por Colaborador',
             'gestion_grupos' => 'Gestion de Grupos y Equipo',
+            'gestion_labores' => 'Catalogo de Labores',
         ],
         'registro_produccion' => [
             'registro' => 'Ingresar Nuevo Registro',
@@ -52,13 +53,10 @@ class Rbac
             'listado' => 'Ver y Gestionar Estructura',
         ],
         'gestion_usuarios' => [
-            'registrar' => 'Registrar Nuevo Usuario',
             'directorio' => 'Directorio de Usuarios',
         ],
         'administracion_roles' => [
-            'editar' => 'Editar Permisos de Rol',
-            'crear' => 'Crear Nuevo Rol',
-            'eliminar' => 'Borrar Rol Sin Uso',
+            'editar' => 'Permisos de Roles',
         ],
     ];
 

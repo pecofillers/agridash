@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Grupo;
 use App\Models\Labor;
 use App\Models\RendimientoLabor;
+use App\Models\RendimientoDetalle;
 use App\Models\Usuario;
 use App\Support\Rbac;
 use Illuminate\Http\Request;
@@ -30,7 +31,7 @@ class RendimientoController extends Controller
         $hoy = date('Y-m-d');
 
         $queryUsuarios = Usuario::with('grupo')->where('Estado', 'ACTIVO');
-        $queryRendimientos = RendimientoLabor::with(['usuario', 'grupo', 'labor'])
+        $queryRendimientos = RendimientoLabor::with(['usuario', 'grupo', 'labor', 'detalles'])
             ->whereDate('Fecha', $hoy);
 
         // Si NO es Administrador ni Superadmin, filtramos exclusivamente por los grupos del supervisor
@@ -60,9 +61,9 @@ class RendimientoController extends Controller
             'Fecha' => 'required|date',
             'ID_Usuario' => 'required|integer|exists:dim_usuarios,ID_Usuario',
             'ID_Labor' => 'required|integer|exists:dim_labores,ID_Labor',
-            'Hora_Inicio' => ['required', 'regex:/^\d{2}:\d{2}$/'],
-            'Hora_Fin' => ['required', 'regex:/^\d{2}:\d{2}$/'],
-            'Cantidad' => 'required|numeric|min:0.01',
+            'Hora_Inicio' => 'required', 
+            'Hora_Fin' => 'required',
+            // 'Cantidad' ya no es strictly required aquí porque podría venir el array 'variantes'
         ]);
 
         $registro = RendimientoLabor::findOrFail($id);
@@ -76,7 +77,6 @@ class RendimientoController extends Controller
             }
         }
 
-        $usuarioAsignado = Usuario::findOrFail($request->ID_Usuario);
         $fecha = Carbon::parse($request->Fecha)->toDateString();
 
         try {
@@ -91,27 +91,84 @@ class RendimientoController extends Controller
         }
 
         $horas = $tInicio->diffInSeconds($tFin) / 3600.0;
-        $cantidad = (float) $request->Cantidad;
 
-        if ($horas <= 0 || $cantidad <= 0) {
-            return back()->with('error', 'Verifica las horas y que la cantidad sea mayor a cero.');
+        if ($horas <= 0) {
+            return back()->with('error', 'Verifica que la hora fin sea posterior a la hora de inicio.');
         }
 
-        $rend = round($cantidad / $horas, 2);
+        // Recibimos las variantes (o la cantidad simple) igual que en el método de crear
+        $variantesInput = $request->input('variantes');
+        
+        if (!$variantesInput && $request->has('Cantidad')) {
+            $variantesInput = [
+                ['nombre' => 'General', 'cantidad' => $request->Cantidad]
+            ];
+        }
 
-        $registro->update([
-            'Fecha' => $fecha,
-            'ID_Usuario' => $request->ID_Usuario,
-            'ID_Grupo' => $usuarioAsignado->ID_Grupo ?? $registro->ID_Grupo,
-            'ID_Labor' => $request->ID_Labor,
-            'Hora_Inicio' => $request->Hora_Inicio,
-            'Hora_Fin' => $request->Hora_Fin,
-            'Horas_Trabajadas' => round($horas, 2),
-            'Cantidad' => $cantidad,
-            'Rendimiento_Hora' => $rend,
-        ]);
+        if (!$variantesInput) {
+            return back()->with('error', 'Debes ingresar al menos una cantidad o variante.');
+        }
 
-        return back()->with('success', 'Registro actualizado correctamente.');
+        // Calcular la cantidad total sumando las variantes editadas
+        $cantidadTotal = collect($variantesInput)->sum('cantidad');
+
+        if ($cantidadTotal <= 0) {
+            return back()->with('error', 'La cantidad total debe ser mayor a cero.');
+        }
+
+        $rend = round($cantidadTotal / $horas, 2);
+
+        DB::transaction(function () use ($registro, $request, $fecha, $horas, $cantidadTotal, $rend, $variantesInput) {
+            
+            // 1. Actualizar la cabecera
+            $registro->update([
+                'Fecha' => $fecha,
+                'ID_Usuario' => $request->ID_Usuario,
+                'ID_Labor' => $request->ID_Labor,
+                'Hora_Inicio' => $request->Hora_Inicio,
+                'Hora_Fin' => $request->Hora_Fin,
+                'Horas_Trabajadas' => round($horas, 2),
+                'Cantidad' => $cantidadTotal,
+                'Rendimiento_Hora' => $rend,
+            ]);
+
+            // 2. Eliminar el detalle anterior
+            RendimientoDetalle::where('ID_Rendimiento', $registro->ID_Rendimiento)->delete();
+
+            // 3. Crear el nuevo detalle con las variantes modificadas
+            foreach ($variantesInput as $var) {
+                $cantVar = (float) ($var['cantidad'] ?? 0);
+                if ($cantVar > 0) {
+                    RendimientoDetalle::create([
+                        'ID_Rendimiento' => $registro->ID_Rendimiento,
+                        'Nombre_Variante' => $var['nombre'] ?? 'General',
+                        'Cantidad' => $cantVar,
+                    ]);
+                }
+            }
+        });
+
+        return back()->with('success', 'Registro y variantes actualizados correctamente.');
+    }
+
+    public function eliminarLabor($id)
+    {
+        $registro = RendimientoLabor::findOrFail($id);
+        $rolNombre = session('rol_nombre', 'OPERARIO');
+        $usuarioAuth = auth()->user();
+
+        // Validar permisos del supervisor
+        if (!in_array($rolNombre, ['ADMIN', 'SUPERADMIN'])) {
+            $grupos = $this->gruposDelSupervisor($usuarioAuth?->Username);
+            if (!in_array($registro->ID_Grupo, $grupos, true)) {
+                return back()->with('error', 'No tienes permisos para eliminar este registro.');
+            }
+        }
+
+        // Eliminar el registro (gracias a 'onDelete cascade', los detalles de variantes se borran solos)
+        $registro->delete();
+
+        return back()->with('success', 'Registro eliminado correctamente.');
     }
 
     public function grupos()
@@ -143,6 +200,13 @@ class RendimientoController extends Controller
 
     public function gestionLabores(Request $request)
     {
+        $usuarioAuth = auth()->user();
+        $rolId = $usuarioAuth?->ID_Rol;
+        $rolNombre = session('rol_nombre', 'OPERARIO');
+
+        // Cargamos los submódulos visibles para mantener el menú superior activado
+        $submodulos = Rbac::submodulosVisibles($rolId, 'rendimiento_colaboradores');
+
         $labores = Labor::orderBy('Nombre_Labor')->get();
         
         $laborSeleccionada = null;
@@ -150,7 +214,7 @@ class RendimientoController extends Controller
             $laborSeleccionada = Labor::find($request->editar);
         }
 
-        return view('rendimiento.labores', compact('labores', 'laborSeleccionada'));
+        return view('rendimiento.labores', compact('submodulos', 'labores', 'laborSeleccionada', 'rolNombre'));
     }
 
     public function guardarLaborCatalogo(Request $request)
@@ -161,26 +225,26 @@ class RendimientoController extends Controller
             'Unidad_Medida' => 'required|string|max:50',
             'Umbral_Verde' => 'required|numeric|min:0',
             'Umbral_Naranja' => 'required|numeric|min:0',
+            'Variantes' => 'nullable|string' // <--- Validación agregada
         ]);
+
+        // Preparamos los datos incluyendo las variantes
+        $datos = [
+            'Nombre_Labor' => trim($request->Nombre_Labor),
+            'Unidad_Medida' => trim($request->Unidad_Medida),
+            'Umbral_Verde' => (float) $request->Umbral_Verde,
+            'Umbral_Naranja' => (float) $request->Umbral_Naranja,
+            'Variantes' => $request->Variantes ? trim($request->Variantes) : null, // <--- Guardamos las variantes
+        ];
 
         if ($request->filled('ID_Labor')) {
             // Modo Edición
             $labor = Labor::findOrFail($request->ID_Labor);
-            $labor->update([
-                'Nombre_Labor' => trim($request->Nombre_Labor),
-                'Unidad_Medida' => trim($request->Unidad_Medida),
-                'Umbral_Verde' => (float) $request->Umbral_Verde,
-                'Umbral_Naranja' => (float) $request->Umbral_Naranja,
-            ]);
-            $mensaje = 'Labor actualizada correctamente.';
+            $labor->update($datos);
+            $mensaje = 'Labor y variantes actualizadas correctamente.';
         } else {
             // Modo Creación
-            Labor::create([
-                'Nombre_Labor' => trim($request->Nombre_Labor),
-                'Unidad_Medida' => trim($request->Unidad_Medida),
-                'Umbral_Verde' => (float) $request->Umbral_Verde,
-                'Umbral_Naranja' => (float) $request->Umbral_Naranja,
-            ]);
+            Labor::create($datos);
             $mensaje = 'Labor registrada correctamente.';
         }
 
@@ -195,7 +259,6 @@ class RendimientoController extends Controller
             'ID_Labor' => 'required|integer|exists:dim_labores,ID_Labor',
             'Hora_Inicio' => ['required', 'regex:/^\d{2}:\d{2}$/'],
             'Hora_Fin' => ['required', 'regex:/^\d{2}:\d{2}$/'],
-            'Cantidad' => 'required|numeric|min:0.01',
         ]);
 
         $rolNombre = session('rol_nombre', 'OPERARIO');
@@ -217,7 +280,7 @@ class RendimientoController extends Controller
             $tInicio = Carbon::parse($fecha . ' ' . $request->Hora_Inicio);
             $tFin = Carbon::parse($fecha . ' ' . $request->Hora_Fin);
         } catch (\Exception $e) {
-            return back()->with('error', 'Formato de hora invalido.');
+            return back()->with('error', 'Formato de hora inválido.');
         }
 
         if ($tFin->lt($tInicio)) {
@@ -225,39 +288,61 @@ class RendimientoController extends Controller
         }
 
         $horas = $tInicio->diffInSeconds($tFin) / 3600.0;
-        $cantidad = (float) $request->Cantidad;
 
-        if ($horas <= 0 || $cantidad <= 0) {
-            return back()->with('error', 'Verifica las horas y que la cantidad sea mayor a cero.');
+        if ($horas <= 0) {
+            return back()->with('error', 'Verifica que la hora fin sea posterior a la hora de inicio.');
         }
 
-        $rend = round($cantidad / $horas, 2);
-
-        $existe = RendimientoLabor::where('Fecha', $fecha)
-            ->where('ID_Usuario', $request->ID_Usuario)
-            ->where('ID_Labor', $request->ID_Labor)
-            ->where('Hora_Inicio', $request->Hora_Inicio)
-            ->where('Hora_Fin', $request->Hora_Fin)
-            ->exists();
-
-        if ($existe) {
-            return back()->with('error', 'Ya existe un registro con el mismo usuario, fecha, labor y horario.');
+        $variantesInput = $request->input('variantes');
+        
+        if (!$variantesInput && $request->has('Cantidad')) {
+            $variantesInput = [
+                ['nombre' => 'General', 'cantidad' => $request->Cantidad]
+            ];
         }
 
-        $nuevoRegistro = RendimientoLabor::create([
-            'Fecha' => $fecha,
-            'ID_Usuario' => $request->ID_Usuario,
-            'ID_Grupo' => $usuarioAsignado->ID_Grupo,
-            'ID_Labor' => $request->ID_Labor, 
-            'Hora_Inicio' => $request->Hora_Inicio,
-            'Hora_Fin' => $request->Hora_Fin,
-            'Horas_Trabajadas' => round($horas, 2),
-            'Cantidad' => $cantidad,
-            'Rendimiento_Hora' => $rend,
-        ]);
+        if (!$variantesInput) {
+            return back()->with('error', 'Debes ingresar al menos una cantidad o variante.');
+        }
+
+        $cantidadTotal = collect($variantesInput)->sum('cantidad');
+
+        if ($cantidadTotal <= 0) {
+            return back()->with('error', 'La cantidad total debe ser mayor a cero.');
+        }
+
+        $rendimientoHora = round($cantidadTotal / $horas, 2);
+
+        $nuevoRegistro = null;
+
+        DB::transaction(function () use ($request, $fecha, $usuarioAsignado, $horas, $cantidadTotal, $rendimientoHora, $variantesInput, &$nuevoRegistro) {
+            
+            $nuevoRegistro = RendimientoLabor::create([
+                'Fecha' => $fecha,
+                'ID_Usuario' => $request->ID_Usuario,
+                'ID_Grupo' => $usuarioAsignado->ID_Grupo,
+                'ID_Labor' => $request->ID_Labor,
+                'Hora_Inicio' => $request->Hora_Inicio,
+                'Hora_Fin' => $request->Hora_Fin,
+                'Horas_Trabajadas' => round($horas, 2),
+                'Cantidad' => $cantidadTotal,
+                'Rendimiento_Hora' => $rendimientoHora,
+            ]);
+
+            foreach ($variantesInput as $var) {
+                $cantVar = (float) ($var['cantidad'] ?? 0);
+                if ($cantVar > 0) {
+                    RendimientoDetalle::create([
+                        'ID_Rendimiento' => $nuevoRegistro->ID_Rendimiento,
+                        'Nombre_Variante' => $var['nombre'] ?? 'General',
+                        'Cantidad' => $cantVar,
+                    ]);
+                }
+            }
+        });
 
         return back()
-            ->with('success', 'Registro guardado exitosamente.')
+            ->with('success', 'Registro y desglose de variantes guardados exitosamente.')
             ->with('ultimo_registro', $nuevoRegistro);
     }
 
@@ -392,7 +477,7 @@ class RendimientoController extends Controller
         $fechaFinStr = $fechaFin->toDateString();
 
         $registros = $this->queryReporte($fechaInicioStr, $fechaFinStr, $rolNombre, $username, $filtroLabor, $filtroPersona)
-            ->with(['usuario', 'labor']) 
+            ->with(['usuario', 'labor', 'detalles']) 
             ->orderByDesc('Fecha')
             ->orderByDesc('Hora_Inicio')
             ->get();
@@ -445,7 +530,7 @@ class RendimientoController extends Controller
             $base = $this->queryReporteBaseSemana($anio, $semana, $rolNombre, $username);
 
             if ($base) {
-                $registros = $base->with(['usuario', 'labor'])->orderBy('Fecha')->orderBy('Hora_Inicio')->get();
+                $registros = $base->with(['usuario', 'labor', 'detalles'])->orderBy('Fecha')->orderBy('Hora_Inicio')->get();
 
                 $resumen = $registros->groupBy(function($r) {
                     return trim(($r->usuario->Nombre ?? '') . ' ' . ($r->usuario->Apellidos ?? '')) ?: ($r->usuario->Username ?? 'Desconocido');
@@ -527,6 +612,21 @@ class RendimientoController extends Controller
         $laborModel = $first->labor;
         $nombreLabor = $laborModel->Nombre_Labor ?? 'Sin Labor';
 
+        // NUEVO: Agrupamos y sumamos las variantes para este usuario en la semana
+        $variantes = [];
+        foreach ($regs as $r) {
+            if ($r->detalles) {
+                foreach ($r->detalles as $det) {
+                    if ($det->Nombre_Variante !== 'General') {
+                        if (!isset($variantes[$det->Nombre_Variante])) {
+                            $variantes[$det->Nombre_Variante] = 0;
+                        }
+                        $variantes[$det->Nombre_Variante] += $det->Cantidad;
+                    }
+                }
+            }
+        }
+
         return [
             'Nombre_Usuario' => $nombreUsuario,
             'Tipo_Labor' => $nombreLabor,
@@ -535,6 +635,7 @@ class RendimientoController extends Controller
             'Rendimiento_Promedio' => $promedio,
             'Registros' => $regs->count(),
             'Color' => $this->colorSemaforo($promedio, $laborModel),
+            'Variantes' => $variantes, // Pasamos las variantes a la vista
         ];
     }
 
@@ -548,6 +649,18 @@ class RendimientoController extends Controller
         return '#d32f2f';
     }
 
-    
+    public function eliminarLaborCatalogo($id)
+    {
+        try {
+            $labor = Labor::findOrFail($id);
+            $labor->delete();
+            return back()->with('success', 'Labor eliminada correctamente del catálogo.');
+        } catch (\Illuminate\Database\QueryException $e) {
+            // El código 23000 es el error de llave foránea de SQL. Si la labor ya tiene rendimientos guardados, no se puede borrar.
+            if ($e->getCode() == "23000") {
+                return back()->with('error', 'No se puede eliminar esta labor porque ya tiene registros de rendimiento asociados. (En su lugar, podrías cambiarle el nombre).');
+            }
+            return back()->with('error', 'Ocurrió un error al intentar eliminar la labor.');
+        }
+    }
 }
-

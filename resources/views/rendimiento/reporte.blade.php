@@ -162,7 +162,39 @@
     @endforeach
 
     <div class="card card-dashboard p-4">
-        <h5 class="mb-3">📋 Detalle Consolidado de Registros</h5>
+        
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+            <h5 class="m-0">📋 Detalle Consolidado de Registros</h5>
+            
+            @php
+                $totalesVariantes = [];
+                foreach($registros as $r) {
+                    if($r->detalles && $r->detalles->count() > 0) {
+                        foreach($r->detalles as $det) {
+                            $varName = $det->Nombre_Variante;
+                            // Ignoramos la etiqueta 'General' de las labores simples
+                            if($varName !== 'General') {
+                                if(!isset($totalesVariantes[$varName])) {
+                                    $totalesVariantes[$varName] = 0;
+                                }
+                                $totalesVariantes[$varName] += $det->Cantidad;
+                            }
+                        }
+                    }
+                }
+            @endphp
+
+            @if(count($totalesVariantes) > 0)
+                <div class="d-flex flex-wrap gap-2 align-items-center p-2 bg-light border rounded">
+                    <strong class="text-dark small m-0">🌸 TOTALES POR VARIANTE:</strong>
+                    @foreach($totalesVariantes as $name => $total)
+                        <span class="badge border" style="background-color: #fff; color: #333; border-color: #ccc !important; font-size: 0.85rem;">
+                            {{ $name }}: <span style="color: #2e7d32; font-weight: bold;">{{ number_format($total, 2) }}</span>
+                        </span>
+                    @endforeach
+                </div>
+            @endif
+        </div>
         <div class="table-responsive">
             <table class="table table-hover table-sm align-middle">
                 <thead>
@@ -173,11 +205,24 @@
                         <tr>
                             <td>{{ \Carbon\Carbon::parse($r->Fecha)->format('d/m/Y') }}</td>
                             <td>{{ trim(($r->usuario->Nombre ?? '') . ' ' . ($r->usuario->Apellidos ?? '')) ?: ($r->usuario->Username ?? 'N/D') }}</td>
-                            <td>{{ $r->labor->Nombre_Labor ?? 'N/D' }}</td>
+                            <td><span class="badge bg-secondary">{{ $r->labor->Nombre_Labor ?? 'N/D' }}</span></td>
                             <td>{{ $r->Hora_Inicio }}</td>
                             <td>{{ $r->Hora_Fin }}</td>
                             <td>{{ $r->Horas_Trabajadas }}</td>
-                            <td>{{ $r->Cantidad }}</td>
+                            <td>
+                                <strong>{{ $r->Cantidad }}</strong>
+                                @if($r->detalles && $r->detalles->count() > 0)
+                                    <div class="mt-1">
+                                        @foreach($r->detalles as $det)
+                                            @if($det->Nombre_Variante !== 'General')
+                                                <span class="badge bg-light text-dark border me-1" style="font-size: 0.7rem;">
+                                                    {{ $det->Nombre_Variante }}: {{ number_format($det->Cantidad, 0) }}
+                                                </span>
+                                            @endif
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </td>
                             <td><strong>{{ $r->Rendimiento_Hora }}</strong></td>
                         </tr>
                     @endforeach
