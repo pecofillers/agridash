@@ -32,5 +32,9 @@ public function boot(): void
 
         // Gate de sub-módulo (pestaña específica)
         Gate::define('submodulo:ver', fn (Usuario $user, $args) => Rbac::tienePermisoSubmodulo($user->ID_Rol, $args[0], $args[1]));
+
+        // Configuración de zona horaria y localización
+        config(['app.timezone' => 'America/Bogota']);
+        date_default_timezone_set('America/Bogota');
     }
 }
