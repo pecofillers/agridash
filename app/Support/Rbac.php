@@ -57,6 +57,8 @@ class Rbac
         ],
         'administracion_roles' => [
             'editar' => 'Permisos de Roles',
+            'crear' => 'Crear Nuevo Rol',
+            'eliminar' => 'Borrar Rol Sin Uso',
         ],
     ];
 
