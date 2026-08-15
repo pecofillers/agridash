@@ -131,13 +131,18 @@
             
             $uAnno = $umbralMap[$lab] ?? ['verde' => 0, 'naranja' => 0];
 
-            // --- NUEVO: Cálculo de totales y ramos específicos por esta labor ---
+            // Cálculo de totales y ramos específicos por esta labor ---
             $totalCantidadLabor = $filtrados->sum('Cantidad');
-            $promedioGeneralLabor = $filtrados->count() > 0 ? $filtrados->avg('Rendimiento_Hora') : 0;
+            $totalHorasLabor = $filtrados->sum('Horas_Trabajadas'); // Obtenemos el total de horas
+            
+            // Cálculo real del promedio general: Cantidad Total / Horas Totales
+            $promedioGeneralLabor = $totalHorasLabor > 0 ? ($totalCantidadLabor / $totalHorasLabor) : 0;
             
             // Definir divisor de ramos según la labor
             $divisorRamos = 10; // Valor por defecto
             $nombreLabUpper = strtoupper($lab);
+
+            $aplicaRamos = !str_contains($nombreLabUpper, 'DESHOJE');
             if (str_contains($nombreLabUpper, 'LIMONIUM')) {
                 $divisorRamos = 9;
             } elseif (str_contains($nombreLabUpper, 'STATICE')) {
@@ -199,7 +204,11 @@
                             </td>
                             <td>{{ number_format($totalCantidadLabor, 2) }} unidades</td>
                             <td class="text-info">
-                                🌸 {{ number_format($totalRamosLabor, 0) }} Ramos <small class="text-muted">(Base {{ $divisorRamos }})</small>
+                                @if($aplicaRamos)
+                                    🌸 {{ number_format($totalRamosLabor, 0) }} Ramos <small class="text-muted">(Base {{ $divisorRamos }})</small>
+                                @else
+                                    <span class="text-muted small">N/A</span>
+                                @endif
                             </td>
                         </tr>
                     </tfoot>
@@ -281,11 +290,18 @@
     @php
         // Cálculo dinámico de ramos por cada labor específica
         $totalRamosPorLabor = [];
+        
+        // Paso 1: Sumar todas las unidades por labor
         foreach($registros as $r) {
             $nombreLabor = strtoupper($r->labor->Nombre_Labor ?? 'OTRA');
+            // Si la labor es Deshoje, saltamos este cálculo y no creamos tarjeta
+            if (str_contains($nombreLabor, 'DESHOJE')) {
+                continue; 
+            }
+            
             $cantidad = $r->Cantidad;
             
-            // Definimos el divisor según la labor (ej: Limonium a 9, Statice a 10, por defecto a 10 si no coincide)
+            // Definimos el divisor según la labor
             $divisor = 10; 
             if (str_contains($nombreLabor, 'LIMONIUM')) {
                 $divisor = 9;
@@ -294,10 +310,20 @@
             }
 
             if (!isset($totalRamosPorLabor[$nombreLabor])) {
-                $totalRamosPorLabor[$nombreLabor] = ['cantidad' => 0, 'ramos' => 0, 'unidad' => $r->labor->Unidad_Medida ?? 'Unidades'];
+                $totalRamosPorLabor[$nombreLabor] = [
+                    'cantidad' => 0, 
+                    'ramos' => 0, 
+                    'unidad' => $r->labor->Unidad_Medida ?? 'Unidades',
+                    'divisor' => $divisor // Guardamos el divisor para usarlo luego
+                ];
             }
+            // Solo acumulamos la cantidad física, sin dividir ni redondear aún
             $totalRamosPorLabor[$nombreLabor]['cantidad'] += $cantidad;
-            $totalRamosPorLabor[$nombreLabor]['ramos'] += round($cantidad / $divisor, 0);
+        }
+
+        // Paso 2: Calcular los ramos dividiendo y redondeando el TOTAL consolidado
+        foreach($totalRamosPorLabor as $labNombre => $datos) {
+            $totalRamosPorLabor[$labNombre]['ramos'] = round($datos['cantidad'] / $datos['divisor'], 0);
         }
     @endphp
 

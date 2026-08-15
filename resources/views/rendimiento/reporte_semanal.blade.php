@@ -72,9 +72,9 @@
 
             foreach($dataLabor as $d) {
                 $totalCantidadLabor += $d['Total_Cantidad'];
-                if(isset($d['Rendimiento_Promedio'])) {
-                    $sumaRendimientos += $d['Rendimiento_Promedio'];
-                    $contadorRendimientos++;
+
+                if(isset($d['Total_Horas'])) {
+                    $totalHorasLabor += $d['Total_Horas'];
                 }
 
                 if(!empty($d['Variantes'])) {
@@ -85,11 +85,13 @@
                 }
             }
 
-            $promedioGeneralLabor = $contadorRendimientos > 0 ? ($sumaRendimientos / $contadorRendimientos) : 0;
+            $promedioGeneralLabor = $totalHorasLabor > 0 ? ($totalCantidadLabor / $totalHorasLabor) : 0;
 
             // Divisor dinámico de ramos (Base 9 para Limonium, Base 10 para Statice u otras)
             $divisorRamos = 10; 
             $nombreLabUpper = strtoupper($lab);
+
+            $aplicaRamos = !str_contains($nombreLabUpper, 'DESHOJE');
             if (str_contains($nombreLabUpper, 'LIMONIUM')) {
                 $divisorRamos = 9;
             } elseif (str_contains($nombreLabUpper, 'STATICE')) {
@@ -176,7 +178,11 @@
                                 </span>
                             </td>
                             <td class="text-info">
-                                🌸 {{ number_format($totalRamosLabor, 0) }} Ramos <small class="text-muted">(Base {{ $divisorRamos }})</small>
+                                @if($aplicaRamos)
+                                    🌸 {{ number_format($totalRamosLabor, 0) }} Ramos <small class="text-muted">(Base {{ $divisorRamos }})</small>
+                                @else
+                                    <span class="text-muted small">N/A (No aplica)</span>
+                                @endif
                             </td>
                         </tr>
                     </tfoot>
