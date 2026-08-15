@@ -31,7 +31,11 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/actualizar', [ProduccionController::class, 'actualizar'])->name('actualizar');
     });
 
-// Rendimiento
+    // Exportar e importar produccion
+    Route::post('/produccion/importar-multinave', [App\Http\Controllers\ProduccionController::class, 'importarExcelMultiNave'])->name('produccion.importar_multinave');
+    Route::get('/produccion/exportar-multinave', [App\Http\Controllers\ProduccionController::class, 'exportarExcelMultiNave'])->name('produccion.exportar_multinave');
+    
+    // Rendimiento
     Route::middleware('permiso:rendimiento_colaboradores,ver')->prefix('rendimiento')->name('rendimiento.')->group(function () {
         Route::get('/', [RendimientoController::class, 'index'])->name('index')->middleware('check.submodulo:rendimiento_colaboradores,registro_labor');
         Route::get('/grupos', [RendimientoController::class, 'grupos'])->name('grupos')->middleware('check.submodulo:rendimiento_colaboradores,gestion_grupos');
@@ -54,7 +58,14 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/', [AgronomiaController::class, 'index'])->name('index')->middleware('check.submodulo:agronomia,historial');
         Route::post('/siembra', [AgronomiaController::class, 'registrarSiembra'])->name('siembra')->middleware('check.submodulo:agronomia,siembra');
         Route::post('/variedad', [AgronomiaController::class, 'crearVariedad'])->name('variedad')->middleware('check.submodulo:agronomia,variedades');
-    });
+        
+        // Importación / Exportación masiva
+        Route::get('/exportar-multibloque', [AgronomiaController::class, 'exportarSiembrasMultiBloque'])->name('exportar_multibloque')->middleware('check.submodulo:agronomia,siembra');
+        Route::post('/importar-multibloque', [AgronomiaController::class, 'importarSiembrasMultiBloque'])->name('importar_multibloque')->middleware('check.submodulo:agronomia,siembra');
+        
+        // Exportar comparativa de siembras
+        Route::get('/consolidado-bloque', [AgronomiaController::class, 'consolidadoBloque'])->name('consolidado_bloque')->middleware('check.submodulo:agronomia,consolidado_bloque');
+});
 
     // Gestion de usuarios
     Route::middleware('permiso:gestion_usuarios,ver')->prefix('usuarios')->name('usuarios.')->group(function () {

@@ -32,34 +32,29 @@ class Rbac
             'registro_labor' => 'Registro de Labor',
             'reporte_graficas' => 'Reporte y Graficas',
             'reporte_semanal' => 'Reporte Semanal por Colaborador',
-            'gestion_grupos' => 'Gestion de Grupos y Equipo',
+            'gestion_grupos' => 'Gestion de Grupos',
             'gestion_labores' => 'Catalogo de Labores',
         ],
         'registro_produccion' => [
-            'registro' => 'Ingresar Nuevo Registro',
-            'editar' => 'Ver y Editar Registros',
+            'registro' => 'Ingresar Registro',
+            'editar' => 'Ver y Editar',
         ],
         'agronomia' => [
             'historial' => 'Historial de Cama',
-            'siembra' => 'Registrar Nueva Siembra',
+            'siembra' => 'Registrar Siembra',
             'variedades' => 'Catalogo de Variedades',
+            'consolidado_bloque' => 'Consolidado por Bloque', // <-- AGREGAR ESTA LÍNEA
+        ],
+        'administracion_ubicaciones' => [
+            'crear' => 'Crear Camas / Naves',
+            'listado' => 'Ver Estructura',
+        ],
+        'administracion_roles' => [
+            'editar' => 'Gestion de Permisos y Roles',
         ],
         'configuracion' => [
             'usuarios' => 'Gestion de Usuarios y Estados',
-            'credenciales' => 'Cambio de Contrasenas',
-        ],
-        'administracion_ubicaciones' => [
-            'crear' => 'Crear Nuevas Camas / Naves',
-            'listado' => 'Ver y Gestionar Estructura',
-        ],
-        'gestion_usuarios' => [
-            'directorio' => 'Directorio de Usuarios',
-            'registrar' => 'Registrar Nuevo Usuario',
-        ],
-        'administracion_roles' => [
-            'editar' => 'Permisos de Roles',
-            'crear' => 'Crear Nuevo Rol',
-            'eliminar' => 'Borrar Rol Sin Uso',
+            'credenciales' => 'Cambio de Contrasena',
         ],
     ];
 
