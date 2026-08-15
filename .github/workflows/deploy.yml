@@ -29,3 +29,5 @@ jobs:
             tests/**
             storage/*.sqlite
             .env
+            .env.example
+            README.md
