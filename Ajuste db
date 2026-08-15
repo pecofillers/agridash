@@ -1,0 +1,21 @@
+-- Actualización de dim_siembras (Estados y Fechas Agronómicas)
+ALTER TABLE `dim_siembras`
+ADD `Estado_Siembra` VARCHAR(50) DEFAULT 'SEMBRADA' AFTER `ID_Variedad`,
+ADD `Ciclo_Actual` INT(11) DEFAULT 1 COMMENT 'Para identificar si es primer corte o rebrote' AFTER `Estado_Siembra`,
+ADD `Fecha_Pinch` DATE NULL AFTER `Fecha_Siembra`,
+ADD `Fecha_Hormona` DATE NULL AFTER `Fecha_Pinch`,
+ADD `Fecha_Erradicacion` DATE NULL AFTER `Fecha_Fin`;
+
+-- Implementación de Soft Deletes (Papelera de reciclaje lógica)
+ALTER TABLE `dim_ubicaciones` ADD `deleted_at` DATETIME NULL DEFAULT NULL;
+ALTER TABLE `dim_siembras` ADD `deleted_at` DATETIME NULL DEFAULT NULL;
+ALTER TABLE `fact_produccion` ADD `deleted_at` DATETIME NULL DEFAULT NULL;
+
+ALTER TABLE `fact_produccion`
+DROP COLUMN `Lunes`,
+DROP COLUMN `Martes`,
+DROP COLUMN `Miercoles`,
+DROP COLUMN `Jueves`,
+DROP COLUMN `Viernes`,
+DROP COLUMN `Sabado`,
+DROP COLUMN `Domingo`;

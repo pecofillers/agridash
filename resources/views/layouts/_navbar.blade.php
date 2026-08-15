@@ -19,17 +19,21 @@
         'agronomia' => [
             'historial' => ['agronomia.index', 'Historial de Cama'],
             'siembra' => ['agronomia.index', 'Registrar Siembra'],
-            'variedades' => ['agronomia.index', 'Catalogo de Variedades'],
+            'consolidado_bloque' => ['agronomia.consolidado_bloque', 'Consolidado por Bloque'], // <-- AGREGAR ESTA LÍNEA
         ],
         'administracion_ubicaciones' => [
             'crear' => ['ubicaciones.index', 'Crear Camas / Naves'],
             'listado' => ['ubicaciones.index', 'Ver Estructura'],
         ],
-        'gestion_usuarios' => [
-            'directorio' => ['usuarios.index', 'Directorio'],
-        ],
         'administracion_roles' => [
-            'editar' => ['roles.index', 'Permisos de roles'],
+            'editar' => ['roles.index', 'Gestion de Permisos y Roles'],
+        ],
+        'gestion_usuarios' => [
+            'directorio' => ['usuarios.index', 'Directorio de Usuarios'],
+        ],
+        'configuracion' => [
+            'usuarios' => ['configuracion.index', 'Gestion de Usuarios'],
+            'credenciales' => ['configuracion.index', 'Cambio de Contrasena'],
         ],
     ];
 
