@@ -51,15 +51,26 @@ class AgronomiaController extends Controller
             'Fecha_Erradicacion' => 'nullable|date',
         ]);
 
-        // Cerrar siembra activa de esta ubicación y cambiar su estado
-        Siembra::where('ID_Ubicacion', $request->ID_Ubicacion)
-            ->whereNull('Fecha_Fin')
-            ->update([
-                'Fecha_Fin' => now(),
-                'Estado_Siembra' => 'TERMINADA'
-            ]);
+        $nuevaFechaSiembra = $request->Fecha_Siembra;
+        $nuevaFechaErradicacion = $request->Fecha_Erradicacion ?? '2099-12-31'; // Si no tiene fecha de erradicación, se asume abierta hacia adelante
 
-        $densidad = $request->Cantidad_Plantas / $request->Metros_Lineales;
+        // Verificar si existe solapamiento de fechas en la misma ubicación
+        $solapamiento = Siembra::where('ID_Ubicacion', $request->ID_Ubicacion)
+            ->where(function ($query) use ($nuevaFechaSiembra, $nuevaFechaErradicacion) {
+                $query->where(function ($sub) use ($nuevaFechaSiembra, $nuevaFechaErradicacion) {
+                    // Comprueba si la siembra nueva se cruza con el rango (Fecha_Siembra a Fecha_Erradicacion) de una siembra existente
+                    $sub->where('Fecha_Siembra', '<=', $nuevaFechaErradicacion)
+                        ->where(function ($q) use ($nuevaFechaSiembra) {
+                            $q->whereNull('Fecha_Erradicacion')
+                            ->orWhere('Fecha_Erradicacion', '>=', $nuevaFechaSiembra);
+                        });
+                });
+            })
+            ->exists();
+
+        if ($solapamiento) {
+            return back()->withErrors(['error' => '⚠️ Alerta: La cama ya cuenta con una siembra activa o un registro en ese rango de fechas. Verifique el historial antes de continuar.'])->withInput();
+        }
 
         Siembra::create([
             'ID_Ubicacion' => $request->ID_Ubicacion,
@@ -67,7 +78,6 @@ class AgronomiaController extends Controller
             'Fecha_Siembra' => $request->Fecha_Siembra,
             'Cantidad_Plantas' => $request->Cantidad_Plantas,
             'Metros_Lineales' => $request->Metros_Lineales,
-            // (La base de datos calculará la densidad por sí sola)
             'Estado_Siembra' => $request->Estado_Siembra ?? 'SEMBRADA',
             'Ciclo_Actual' => $request->Ciclo_Actual ?? 1,
             'Fecha_Pinch' => $request->Fecha_Pinch,
@@ -76,6 +86,23 @@ class AgronomiaController extends Controller
         ]);
 
         return back()->with('success', 'Siembra registrada correctamente.');
+    }
+
+    public function actualizar(Request $request, $id)
+    {
+        $siembra = Siembra::findOrFail($id);
+        
+        $siembra->update([
+            'ID_Variedad' => $request->ID_Variedad,
+            'Estado_Siembra' => $request->Estado_Siembra,
+            'Ciclo_Actual' => $request->Ciclo_Actual,
+            'Cantidad_Plantas' => $request->Cantidad_Plantas,
+            'Metros_Lineales' => $request->Metros_Lineales,
+            'Fecha_Fin' => $request->Fecha_Fin,
+            'Fecha_Erradicacion' => $request->Fecha_Erradicacion,
+        ]);
+
+        return back()->with('success', 'Siembra actualizada correctamente.');
     }
 
     public function crearVariedad(Request $request)
