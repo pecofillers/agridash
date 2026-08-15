@@ -58,7 +58,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/', [AgronomiaController::class, 'index'])->name('index')->middleware('check.submodulo:agronomia,historial');
         Route::post('/siembra', [AgronomiaController::class, 'registrarSiembra'])->name('siembra')->middleware('check.submodulo:agronomia,siembra');
         Route::post('/variedad', [AgronomiaController::class, 'crearVariedad'])->name('variedad')->middleware('check.submodulo:agronomia,variedades');
-        
+        Route::put('/{id}', [AgronomiaController::class, 'actualizar'])->name('actualizar');
         // Importación / Exportación masiva
         Route::get('/exportar-multibloque', [AgronomiaController::class, 'exportarSiembrasMultiBloque'])->name('exportar_multibloque')->middleware('check.submodulo:agronomia,siembra');
         Route::post('/importar-multibloque', [AgronomiaController::class, 'importarSiembrasMultiBloque'])->name('importar_multibloque')->middleware('check.submodulo:agronomia,siembra');

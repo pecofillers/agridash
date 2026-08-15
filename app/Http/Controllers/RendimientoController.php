@@ -451,6 +451,7 @@ class RendimientoController extends Controller
             ->all();
     }
 
+    // En la vista de reporte, permitimos recibir el filtro de grupo
     public function reporte(Request $request)
     {
         $rolNombre = session('rol_nombre', 'OPERARIO');
@@ -460,6 +461,7 @@ class RendimientoController extends Controller
         $filtroTiempo = $request->input('periodo', 'Esta Semana');
         $filtroLabor = $request->input('labor', 'TODAS');
         $filtroPersona = $request->input('persona', 'TODOS');
+        $filtroGrupo = $request->input('grupo', 'TODOS');
 
         $hoy = Carbon::today();
         $fechaInicio = $hoy->copy()->startOfWeek();
@@ -476,11 +478,36 @@ class RendimientoController extends Controller
         $fechaInicioStr = $fechaInicio->toDateString();
         $fechaFinStr = $fechaFin->toDateString();
 
-        $registros = $this->queryReporte($fechaInicioStr, $fechaFinStr, $rolNombre, $username, $filtroLabor, $filtroPersona)
-            ->with(['usuario', 'labor', 'detalles']) 
-            ->orderByDesc('Fecha')
-            ->orderByDesc('Hora_Inicio')
-            ->get();
+        // Modificamos la consulta para soportar el filtro de grupo si es ADMIN/SUPERADMIN
+        $q = RendimientoLabor::query()->whereBetween('Fecha', [$fechaInicioStr, $fechaFinStr]);
+
+        if (!in_array($rolNombre, ['ADMIN', 'SUPERADMIN'])) {
+            $grupos = $this->gruposDelSupervisor($username);
+            if (!$grupos) {
+                $registros = collect();
+            } else {
+                $q->whereIn('ID_Grupo', $grupos);
+            }
+        } else {
+            if ($filtroGrupo !== 'TODOS') {
+                $q->where('ID_Grupo', $filtroGrupo);
+            }
+        }
+
+        if ($filtroLabor !== 'TODAS') {
+            $q->whereHas('labor', function($query) use ($filtroLabor) {
+                $query->where('Nombre_Labor', $filtroLabor);
+            });
+        }
+
+        if ($filtroPersona !== 'TODOS') {
+            $q->whereHas('usuario', function($query) use ($filtroPersona) {
+                $query->whereRaw("TRIM(CONCAT(IFNULL(Nombre, ''), ' ', IFNULL(Apellidos, ''))) = ?", [$filtroPersona])
+                    ->orWhere('Username', $filtroPersona);
+            });
+        }
+
+        $registros = $q->with(['usuario', 'labor', 'detalles', 'grupo'])->orderByDesc('Fecha')->orderByDesc('Hora_Inicio')->get();
 
         $meta = 15.0;
         $catalogoLabores = Labor::orderBy('Nombre_Labor')->get();
@@ -492,22 +519,22 @@ class RendimientoController extends Controller
         }
 
         $usuariosFiltro = $this->usuariosVisibles();
+        $gruposFiltro = Grupo::with('supervisor')->orderBy('Nombre_Grupo')->get();
+        
+        $supervisorNombre = 'Todos los supervisores (Grupos múltiples)';
+        if ($filtroGrupo !== 'TODOS') {
+            $infoGrupo = DB::table('dim_grupos as g')
+                ->leftJoin('dim_usuarios as u', 'g.ID_Supervisor', '=', 'u.ID_Usuario')
+                ->where('g.ID_Grupo', $filtroGrupo)
+                ->select('u.Nombre', 'u.Apellidos', 'u.Username')
+                ->first();
 
-        $historicoDiario = collect();
-        if ($filtroPersona !== 'TODOS' && $registros->isNotEmpty()) {
-            $historicoDiario = $registros
-                ->groupBy(fn ($r) => Carbon::parse($r->Fecha)->toDateString())
-                ->map(function ($regs) {
-                    return [
-                        'fecha' => Carbon::parse($regs->first()->Fecha)->format('d/m'),
-                        'rend' => round($regs->avg('Rendimiento_Hora'), 1),
-                    ];
-                })
-                ->sortKeys()
-                ->values();
+            if ($infoGrupo) {
+                $supervisorNombre = trim(($infoGrupo->Nombre ?? '') . ' ' . ($infoGrupo->Apellidos ?? '')) ?: ($infoGrupo->Username ?? 'No asignado');
+            }
         }
 
-        return view('rendimiento.reporte', compact('registros', 'filtroTiempo', 'filtroLabor', 'filtroPersona', 'fechaInicioStr', 'fechaFinStr', 'meta', 'usuariosFiltro', 'historicoDiario', 'catalogoLabores'));
+        return view('rendimiento.reporte', compact('registros', 'filtroTiempo', 'filtroLabor', 'filtroPersona', 'filtroGrupo', 'fechaInicioStr', 'fechaFinStr', 'meta', 'usuariosFiltro', 'gruposFiltro', 'catalogoLabores', 'rolNombre', 'supervisorNombre'));
     }
 
     public function reporteSemanal(Request $request)
@@ -517,7 +544,8 @@ class RendimientoController extends Controller
         $username = $usuarioAuth?->Username;
 
         $semanaSel = $request->input('semana');
-        $semanas = $this->semanasDisponibles($rolNombre, $username);
+        $filtroGrupo = $request->input('grupo', 'TODOS'); // <--- CAPTURAR EL GRUPO
+        $semanas = $this->semanasDisponibles($rolNombre, $username, $filtroGrupo);
 
         $resumen = collect();
         $detalle = collect();
@@ -527,10 +555,10 @@ class RendimientoController extends Controller
             $anio = (int) $m[1];
             $semana = (int) $m[2];
 
-            $base = $this->queryReporteBaseSemana($anio, $semana, $rolNombre, $username);
+            $base = $this->queryReporteBaseSemana($anio, $semana, $rolNombre, $username, $filtroGrupo);
 
             if ($base) {
-                $registros = $base->with(['usuario', 'labor', 'detalles'])->orderBy('Fecha')->orderBy('Hora_Inicio')->get();
+                $registros = $base->with(['usuario', 'labor', 'detalles', 'grupo'])->orderBy('Fecha')->orderBy('Hora_Inicio')->get();
 
                 $resumen = $registros->groupBy(function($r) {
                     return trim(($r->usuario->Nombre ?? '') . ' ' . ($r->usuario->Apellidos ?? '')) ?: ($r->usuario->Username ?? 'Desconocido');
@@ -558,8 +586,56 @@ class RendimientoController extends Controller
         }
 
         $laborCatalogo = Labor::orderBy('Nombre_Labor')->get();
+        $gruposFiltro = Grupo::orderBy('Nombre_Grupo')->get(); 
 
-        return view('rendimiento.reporte_semanal', compact('semanas', 'semanaSel', 'resumen', 'detalle', 'fechaRef', 'laborCatalogo'));
+        // --- CONSULTA DEL SUPERVISOR ---
+        $supervisorNombre = 'No asignado';
+        if ($filtroGrupo !== 'TODOS') {
+            // Buscamos el grupo y su supervisor directamente de la base de datos
+            $infoGrupo = DB::table('dim_grupos as g')
+                ->leftJoin('dim_usuarios as u', 'g.ID_Supervisor', '=', 'u.ID_Usuario')
+                ->where('g.ID_Grupo', $filtroGrupo)
+                ->select('u.Nombre', 'u.Apellidos', 'u.Username')
+                ->first();
+
+            if ($infoGrupo) {
+                $supervisorNombre = trim(($infoGrupo->Nombre ?? '') . ' ' . ($infoGrupo->Apellidos ?? '')) ?: ($infoGrupo->Username ?? 'N/D');
+            }
+        } else {
+            $supervisorNombre = 'Todos los supervisores (Grupos múltiples)';
+        }
+
+        return view('rendimiento.reporte_semanal', compact(
+            'semanas', 
+            'semanaSel', 
+            'resumen', 
+            'detalle', 
+            'fechaRef', 
+            'laborCatalogo', 
+            'gruposFiltro', 
+            'filtroGrupo', 
+            'rolNombre',
+            'supervisorNombre'
+        ));
+    }
+
+    private function queryReporteBaseSemana(int $anio, int $semana, string $rolNombre, ?string $username, string $filtroGrupo = 'TODOS')
+    {
+        $q = RendimientoLabor::query()
+            ->whereYear('Fecha', $anio)
+            ->whereRaw('WEEK(Fecha, 3) = ?', [$semana]);
+
+        if (!in_array($rolNombre, ['ADMIN', 'SUPERADMIN'])) {
+            $grupos = $this->gruposDelSupervisor($username);
+            if (!$grupos) return null;
+            $q->whereIn('ID_Grupo', $grupos);
+        } else {
+            if ($filtroGrupo !== 'TODOS') {
+                $q->where('ID_Grupo', $filtroGrupo);
+            }
+        }
+
+        return $q;
     }
 
     private function semanasDisponibles(string $rolNombre, ?string $username): array
@@ -574,21 +650,6 @@ class RendimientoController extends Controller
 
         $rows = $base->orderByDesc('Anio')->orderByDesc('Semana')->get();
         return $rows->map(fn ($r) => sprintf('%04d-S%02d', $r->Anio, $r->Semana))->values()->all();
-    }
-
-    private function queryReporteBaseSemana(int $anio, int $semana, string $rolNombre, ?string $username)
-    {
-        $q = RendimientoLabor::query()
-            ->whereYear('Fecha', $anio)
-            ->whereRaw('WEEK(Fecha, 3) = ?', [$semana]);
-
-        if (!in_array($rolNombre, ['ADMIN', 'SUPERADMIN'])) {
-            $grupos = $this->gruposDelSupervisor($username);
-            if (!$grupos) return null;
-            $q->whereIn('ID_Grupo', $grupos);
-        }
-
-        return $q;
     }
 
     private function agruparPorLabor($registros)

@@ -61,14 +61,32 @@
             <label class="form-label">Hasta</label>
             <input type="date" name="hasta" class="form-control" value="{{ request('hasta', $fechaFinStr) }}">
         </div>
+        @endif
+        <!-- Filtro de Grupo adicional para Administradores // Sirve para filtrar por grupo -->
+        @if (in_array($rolNombre ?? '', ['ADMIN', 'SUPERADMIN']))
+        <div class="col-md-3">
+            <label class="form-label">Grupo de Trabajo</label>
+            <select name="grupo" class="form-select" onchange="this.form.submit()">
+                <option value="TODOS" {{ ($filtroGrupo ?? 'TODOS') == 'TODOS' ? 'selected' : '' }}>TODOS LOS GRUPOS</option>
+                @foreach ($gruposFiltro ?? [] as $g)
+                    <option value="{{ $g->ID_Grupo }}" {{ ($filtroGrupo ?? '') == $g->ID_Grupo ? 'selected' : '' }}>{{ $g->Nombre_Grupo }}</option>
+                @endforeach
+            </select>
+        </div>
+        @endif
         <div class="col-md-2">
             <button class="btn btn-primary w-100">Filtrar</button>
         </div>
-        @endif
     </form>
     <div class="mt-3 text-muted small">
         Rango aplicado: <strong>{{ $fechaInicioStr }}</strong> a <strong>{{ $fechaFinStr }}</strong>
     </div>
+
+    @if(isset($filtroGrupo))
+        <div class="mt-3 pt-3 border-top text-muted small">
+            👤 Supervisor a cargo: <strong class="text-dark">{{ $supervisorNombre ?? 'No asignado' }}</strong>
+        </div>
+    @endif
 </div>
 
 @if ($registros->isNotEmpty())
@@ -112,6 +130,20 @@
             })->values();
             
             $uAnno = $umbralMap[$lab] ?? ['verde' => 0, 'naranja' => 0];
+
+            // --- NUEVO: Cálculo de totales y ramos específicos por esta labor ---
+            $totalCantidadLabor = $filtrados->sum('Cantidad');
+            $promedioGeneralLabor = $filtrados->count() > 0 ? $filtrados->avg('Rendimiento_Hora') : 0;
+            
+            // Definir divisor de ramos según la labor
+            $divisorRamos = 10; // Valor por defecto
+            $nombreLabUpper = strtoupper($lab);
+            if (str_contains($nombreLabUpper, 'LIMONIUM')) {
+                $divisorRamos = 9;
+            } elseif (str_contains($nombreLabUpper, 'STATICE')) {
+                $divisorRamos = 10;
+            }
+            $totalRamosLabor = round($totalCantidadLabor / $divisorRamos, 0);
         @endphp
 
         <div class="chart-card mb-4">
@@ -156,6 +188,21 @@
                             </tr>
                         @endforeach
                     </tbody>
+                    <!-- NUEVA FILA DE TOTALES AL PIE DE CADA TABLA -->
+                    <tfoot class="table-light fw-bold">
+                        <tr>
+                            <td class="text-end">TOTALES / PROMEDIO GENERAL:</td>
+                            <td>
+                                <span class="badge bg-primary" style="font-size:0.9rem;">
+                                    {{ number_format($promedioGeneralLabor, 2) }} u/hr
+                                </span>
+                            </td>
+                            <td>{{ number_format($totalCantidadLabor, 2) }} unidades</td>
+                            <td class="text-info">
+                                🌸 {{ number_format($totalRamosLabor, 0) }} Ramos <small class="text-muted">(Base {{ $divisorRamos }})</small>
+                            </td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
         </div>
@@ -229,6 +276,51 @@
                 </tbody>
             </table>
         </div>
+    </div>
+
+    @php
+        // Cálculo dinámico de ramos por cada labor específica
+        $totalRamosPorLabor = [];
+        foreach($registros as $r) {
+            $nombreLabor = strtoupper($r->labor->Nombre_Labor ?? 'OTRA');
+            $cantidad = $r->Cantidad;
+            
+            // Definimos el divisor según la labor (ej: Limonium a 9, Statice a 10, por defecto a 10 si no coincide)
+            $divisor = 10; 
+            if (str_contains($nombreLabor, 'LIMONIUM')) {
+                $divisor = 9;
+            } elseif (str_contains($nombreLabor, 'STATICE')) {
+                $divisor = 10;
+            }
+
+            if (!isset($totalRamosPorLabor[$nombreLabor])) {
+                $totalRamosPorLabor[$nombreLabor] = ['cantidad' => 0, 'ramos' => 0, 'unidad' => $r->labor->Unidad_Medida ?? 'Unidades'];
+            }
+            $totalRamosPorLabor[$nombreLabor]['cantidad'] += $cantidad;
+            $totalRamosPorLabor[$nombreLabor]['ramos'] += round($cantidad / $divisor, 0);
+        }
+    @endphp
+
+    <!-- Tarjetas de Resumen por Labor y Ramos Estimados -->
+    <div class="row mb-4">
+        @foreach($totalRamosPorLabor as $labNombre => $info)
+            <div class="col-md-4 mb-3">
+                <div class="card p-3 bg-white border shadow-sm">
+                    <span class="text-muted small">🌸 Ramos Estimados — <strong>{{ $labNombre }}</strong></span>
+                    <h3 class="fw-bold text-info m-0">{{ number_format($info['ramos'], 0) }} <small class="fs-6 text-muted">ramos</small></h3>
+                    <span class="text-muted small mt-1">Total unidades: {{ number_format($info['cantidad'], 2) }}</span>
+                </div>
+            </div>
+        @endforeach
+    </div>
+
+    <div class="d-flex justify-content-end gap-2 mb-3">
+        <a href="#" onclick="window.print();" class="btn btn-outline-danger btn-sm">
+            🖨️ Exportar / Imprimir PDF
+        </a>
+        <button onclick="exportarReporteCompletoExcel()" class="btn btn-success btn-sm">
+            📊 Descargar Excel Completo
+        </button>
     </div>
 @else
     <div class="alert alert-info">No hay registros para los filtros seleccionados.</div>
@@ -356,5 +448,40 @@ document.addEventListener('DOMContentLoaded', function () {
         @endforeach
     @endif
 });
+
+function exportarReporteCompletoExcel() {
+    let tabla = document.querySelector('.table');
+    if (!tabla) {
+        alert('No hay datos para exportar.');
+        return;
+    }
+    
+    let html = `
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Consolidado de Rendimiento</title>
+            <style>
+                table { border-collapse: collapse; width: 100%; }
+                th, td { border: 1px solid #000; padding: 6px; text-align: left; font-size: 12px; }
+                th { background-color: #2e7d32; color: #fff; }
+            </style>
+        </head>
+        <body>
+            <h3>Reporte Consolidado de Rendimiento</h3>
+            <p>Rango de fechas: {{ $fechaInicioStr ?? '' }} al {{ $fechaFinStr ?? '' }} | Filtro Labor: {{ $filtroLabor ?? 'TODAS' }}</p>
+            ${tabla.outerHTML}
+        </body>
+        </html>
+    `;
+
+    let blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+    let url = window.URL.createObjectURL(blob);
+    let a = document.createElement('a');
+    a.href = url;
+    a.download = `Reporte_Rendimiento_{{ date('Y-m-d') }}.xls`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+}
 </script>
 @endpush

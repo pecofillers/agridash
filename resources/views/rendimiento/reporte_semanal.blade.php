@@ -17,7 +17,7 @@
 
 <div class="card card-dashboard p-4 mb-4">
     <form method="GET" action="{{ route('rendimiento.reporteSemanal') }}" class="row g-3 align-items-end">
-        <div class="col-md-6">
+        <div class="col-md-5">
             <label class="form-label">📅 Selecciona la semana</label>
             <select name="semana" class="form-select" onchange="this.form.submit()">
                 <option value="">-- Seleccionar --</option>
@@ -26,7 +26,29 @@
                 @endforeach
             </select>
         </div>
+
+        @if (in_array($rolNombre ?? '', ['ADMIN', 'SUPERADMIN']))
+        <div class="col-md-5">
+            <label class="form-label">Grupo de Trabajo</label>
+            <select name="grupo" class="form-select" onchange="this.form.submit()">
+                <option value="TODOS" {{ ($filtroGrupo ?? 'TODOS') == 'TODOS' ? 'selected' : '' }}>TODOS LOS GRUPOS</option>
+                @foreach ($gruposFiltro ?? [] as $g)
+                    <option value="{{ $g->ID_Grupo }}" {{ ($filtroGrupo ?? '') == $g->ID_Grupo ? 'selected' : '' }}>{{ $g->Nombre_Grupo }}</option>
+                @endforeach
+            </select>
+        </div>
+        @endif
+
+        <div class="col-md-2">
+            <button class="btn btn-primary w-100">Filtrar</button>
+        </div>
     </form>
+
+    @if(isset($filtroGrupo))
+        <div class="mt-3 pt-3 border-top text-muted small">
+            👤 Supervisor a cargo: <strong class="text-dark">{{ $supervisorNombre ?? 'No asignado' }}</strong>
+        </div>
+    @endif
 </div>
 
 @if ($semanaSel && isset($detalle) && count($detalle) > 0)
@@ -42,9 +64,19 @@
         @php
             $uAnno = $umbralMap[$lab] ?? ['verde' => 0, 'naranja' => 0];
             
-            // Calculamos el total de variantes de esta labor para toda la semana
+            // Calculamos el total de variantes y producción de esta labor para la semana
             $totalesVariantesLabor = [];
+            $totalCantidadLabor = 0;
+            $sumaRendimientos = 0;
+            $contadorRendimientos = 0;
+
             foreach($dataLabor as $d) {
+                $totalCantidadLabor += $d['Total_Cantidad'];
+                if(isset($d['Rendimiento_Promedio'])) {
+                    $sumaRendimientos += $d['Rendimiento_Promedio'];
+                    $contadorRendimientos++;
+                }
+
                 if(!empty($d['Variantes'])) {
                     foreach($d['Variantes'] as $vName => $vCant) {
                         if(!isset($totalesVariantesLabor[$vName])) $totalesVariantesLabor[$vName] = 0;
@@ -52,6 +84,18 @@
                     }
                 }
             }
+
+            $promedioGeneralLabor = $contadorRendimientos > 0 ? ($sumaRendimientos / $contadorRendimientos) : 0;
+
+            // Divisor dinámico de ramos (Base 9 para Limonium, Base 10 para Statice u otras)
+            $divisorRamos = 10; 
+            $nombreLabUpper = strtoupper($lab);
+            if (str_contains($nombreLabUpper, 'LIMONIUM')) {
+                $divisorRamos = 9;
+            } elseif (str_contains($nombreLabUpper, 'STATICE')) {
+                $divisorRamos = 10;
+            }
+            $totalRamosLabor = round($totalCantidadLabor / $divisorRamos, 0);
         @endphp
 
         <div class="chart-card mb-4">
@@ -122,10 +166,33 @@
                             </tr>
                         @endforeach
                     </tbody>
+                    <tfoot class="table-light fw-bold">
+                        <tr>
+                            <td colspan="3" class="text-end">TOTALES / PROMEDIO GENERAL SEMANAL:</td>
+                            <td>{{ number_format($totalCantidadLabor, 2) }} unidades</td>
+                            <td>
+                                <span class="badge bg-primary" style="font-size:0.9rem;">
+                                    {{ number_format($promedioGeneralLabor, 2) }} u/hr
+                                </span>
+                            </td>
+                            <td class="text-info">
+                                🌸 {{ number_format($totalRamosLabor, 0) }} Ramos <small class="text-muted">(Base {{ $divisorRamos }})</small>
+                            </td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
         </div>
     @endforeach
+
+    <div class="d-flex justify-content-end gap-2 mb-4">
+        <a href="#" onclick="window.print();" class="btn btn-outline-danger btn-sm">
+            🖨️ Exportar / Imprimir PDF Semanal
+        </a>
+        <button onclick="exportarReporteSemanalExcel()" class="btn btn-success btn-sm">
+            📊 Descargar Excel Semanal Completo
+        </button>
+    </div>
 
 @elseif($semanaSel)
     <div class="alert alert-info">No hay datos registrados para la semana seleccionada.</div>
@@ -188,5 +255,45 @@ document.addEventListener('DOMContentLoaded', function () {
         @endforeach
     @endif
 });
+
+function exportarReporteSemanalExcel() {
+    let tablas = document.querySelectorAll('.table');
+    if (tablas.length === 0) {
+        alert('No hay datos para exportar.');
+        return;
+    }
+    
+    let htmlTablas = '';
+    tablas.forEach((t, index) => {
+        htmlTablas += `<br><h4>Tabla ${index + 1}</h4>` + t.outerHTML;
+    });
+
+    let html = `
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Reporte Semanal de Rendimiento</title>
+            <style>
+                table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+                th, td { border: 1px solid #000; padding: 6px; text-align: left; font-size: 12px; }
+                th { background-color: #2e7d32; color: #fff; }
+            </style>
+        </head>
+        <body>
+            <h3>Reporte Consolidado Semanal de Rendimiento</h3>
+            <p>Semana seleccionada: {{ $semanaSel ?? '' }}</p>
+            ${htmlTablas}
+        </body>
+        </html>
+    `;
+
+    let blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+    let url = window.URL.createObjectURL(blob);
+    let a = document.createElement('a');
+    a.href = url;
+    a.download = `Reporte_Semanal_{{ $semanaSel ?? date('Y-m-d') }}.xls`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+}
 </script>
 @endpush
