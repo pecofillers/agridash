@@ -67,6 +67,7 @@
             // Calculamos el total de variantes y producción de esta labor para la semana
             $totalesVariantesLabor = [];
             $totalCantidadLabor = 0;
+            $totalHorasLabor = 0;
             $sumaRendimientos = 0;
             $contadorRendimientos = 0;
 
