@@ -17,13 +17,11 @@
             'editar' => ['produccion.index', 'Ver y Editar'],
         ],
         'agronomia' => [
-            'historial' => ['agronomia.index', 'Historial de Cama'],
             'siembra' => ['agronomia.index', 'Registrar Siembra'],
-            'consolidado_bloque' => ['agronomia.consolidado_bloque', 'Consolidado por Bloque'], // <-- AGREGAR ESTA LÍNEA
+            'consolidado_bloque' => ['agronomia.consolidado_bloque', 'Consolidado por Bloque'],
         ],
         'administracion_ubicaciones' => [
-            'crear' => ['ubicaciones.index', 'Crear Camas / Naves'],
-            'listado' => ['ubicaciones.index', 'Ver Estructura'],
+            'listado' => ['ubicaciones.index', 'Crear Camas / Naves'],
         ],
         'administracion_roles' => [
             'editar' => ['roles.index', 'Gestion de Permisos y Roles'],

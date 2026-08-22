@@ -18,22 +18,41 @@ use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 
 class AgronomiaController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $ubicaciones = Ubicacion::orderBy('Bloque')->orderBy('Nave')->orderBy('Cama')->get();
-        $variedades = Variedad::orderBy('Nombre_Variedad')->get();
-        $historial = collect();
+        // 1. Obtener la lista de bloques para el primer filtro
+        $bloques = \App\Models\Ubicacion::bloques();
+        $naves = [];
+        $camasFiltradas = [];
 
-        $idUbicacion = request('ID_Ubicacion');
+        // 2. Si se selecciona un bloque, buscamos sus naves
+        if ($request->filled('Bloque')) {
+            $naves = \App\Models\Ubicacion::naves($request->Bloque);
+        }
 
-        if ($idUbicacion) {
-            $historial = Siembra::where('ID_Ubicacion', $idUbicacion)
-                ->with('variedad', 'ubicacion')
-                ->orderBy('Fecha_Siembra')
+        // 3. Si se selecciona bloque y nave, buscamos las camas disponibles
+        if ($request->filled('Bloque') && $request->filled('Nave')) {
+            $camasFiltradas = \App\Models\Ubicacion::where('Bloque', $request->Bloque)
+                ->where('Nave', $request->Nave)
                 ->get();
         }
 
-        return view('agronomia.index', compact('ubicaciones', 'variedades', 'historial', 'idUbicacion'));
+        $idUbicacion = $request->ID_Ubicacion;
+        $historial = collect();
+
+        // 4. Si finalmente se seleccionó una cama, traemos su historial de siembra
+        if ($idUbicacion) {
+            $historial = \App\Models\Siembra::with(['ubicacion', 'variedad'])
+                ->where('ID_Ubicacion', $idUbicacion)
+                ->orderBy('Fecha_Siembra', 'desc')
+                ->get();
+        }
+
+        // 5. Ubicaciones completas para el modal de nueva siembra y variedades
+        $ubicaciones = \App\Models\Ubicacion::all();
+        $variedades = \App\Models\Variedad::all();
+
+        return view('agronomia.index', compact('ubicaciones', 'variedades', 'historial', 'idUbicacion', 'bloques', 'naves', 'camasFiltradas'));
     }
 
     public function registrarSiembra(Request $request)
@@ -50,6 +69,15 @@ class AgronomiaController extends Controller
             'Fecha_Hormona' => 'nullable|date',
             'Fecha_Erradicacion' => 'nullable|date',
         ]);
+
+        // Verificar si la cama ya está ocupada
+        $camaOcupada = Siembra::where('ID_Ubicacion', $request->ID_Ubicacion)
+            ->whereIn('Estado_Siembra', ['SEMBRADA', 'EN PRODUCCION']) // Asumiendo que guardas EN PRODUCCION
+            ->exists();
+
+        if ($camaOcupada) {
+            return back()->withErrors(['error' => '¡Operación denegada! Esta cama ya tiene un cultivo activo. Debes erradicar la siembra actual antes de registrar una nueva.']);
+        }
 
         $nuevaFechaSiembra = $request->Fecha_Siembra;
         $nuevaFechaErradicacion = $request->Fecha_Erradicacion ?? '2099-12-31'; // Si no tiene fecha de erradicación, se asume abierta hacia adelante
@@ -98,7 +126,6 @@ class AgronomiaController extends Controller
             'Ciclo_Actual' => $request->Ciclo_Actual,
             'Cantidad_Plantas' => $request->Cantidad_Plantas,
             'Metros_Lineales' => $request->Metros_Lineales,
-            'Fecha_Fin' => $request->Fecha_Fin,
             'Fecha_Erradicacion' => $request->Fecha_Erradicacion,
         ]);
 
@@ -132,7 +159,7 @@ class AgronomiaController extends Controller
         $sheetIndex = 0;
 
         // Ya no necesitamos la columna 'bloque' porque la pestaña define el bloque
-        $cabeceras = ['nave', 'cama', 'variedad', 'fecha_siembra', 'fecha_fin', 'plantas', 'metros', 'estado', 'ciclo', 'fecha_pinch', 'fecha_hormona', 'fecha_erradicacion'];
+        $cabeceras = ['nave', 'cama', 'variedad', 'fecha_siembra', 'plantas', 'metros', 'estado', 'ciclo', 'fecha_pinch', 'fecha_hormona', 'fecha_erradicacion'];
 
         foreach ($bloques as $bloque) {
             $sheet = $sheetIndex === 0 ? $spreadsheet->getActiveSheet() : $spreadsheet->createSheet();
@@ -160,7 +187,6 @@ class AgronomiaController extends Controller
                 $sheet->setCellValue('B' . $fila, $s->ubicacion ? $s->ubicacion->Cama : '');
                 $sheet->setCellValue('C' . $fila, $s->variedad ? $s->variedad->Nombre_Variedad : '');
                 $sheet->setCellValue('D' . $fila, $s->Fecha_Siembra ? $s->Fecha_Siembra->format('Y-m-d') : '');
-                $sheet->setCellValue('E' . $fila, $s->Fecha_Fin ? $s->Fecha_Fin->format('Y-m-d') : '');
                 $sheet->setCellValue('F' . $fila, $s->Cantidad_Plantas);
                 $sheet->setCellValue('G' . $fila, $s->Metros_Lineales);
                 $sheet->setCellValue('H' . $fila, $s->Estado_Siembra);
@@ -214,7 +240,6 @@ class AgronomiaController extends Controller
                 $idxCama = array_search('cama', $cabeceras);
                 $idxVariedad = array_search('variedad', $cabeceras);
                 $idxFSiembra = array_search('fecha_siembra', $cabeceras);
-                $idxFFin = array_search('fecha_fin', $cabeceras);
                 $idxPlantas = array_search('plantas', $cabeceras);
                 $idxMetros = array_search('metros', $cabeceras);
                 $idxEstado = array_search('estado', $cabeceras);
@@ -273,7 +298,6 @@ class AgronomiaController extends Controller
                                 'Fecha_Siembra' => $fechaSiembra,
                             ],
                             [
-                                'Fecha_Fin' => $idxFFin !== false ? $parseDate($row[$idxFFin]) : null,
                                 'Cantidad_Plantas' => $plantas,
                                 'Metros_Lineales' => $metros,
                                 // (La base de datos calculará la densidad por sí sola)
@@ -347,7 +371,6 @@ class AgronomiaController extends Controller
                 'fecha_siembra'  => $fSiembraFormatted,
                 'variedad'       => $primera->variedad ? $primera->variedad->Nombre_Variedad : 'N/A',
                 'color'          => $primera->variedad ? $primera->variedad->Color : 'N/A',
-                'fecha_fin'      => $primera->Fecha_Fin ? $primera->Fecha_Fin->format('d/m/Y') : 'ACTIVA',
                 'fecha_pinch'    => $primera->Fecha_Pinch ? $primera->Fecha_Pinch->format('d/m/Y') : 'Sin Pinch',
                 'numero_camas'   => $numeroCamas,
                 'numero_plantas' => $totalPlantas,

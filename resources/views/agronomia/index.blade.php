@@ -50,26 +50,47 @@
     <h5>🔍 Buscar Historial de Cama</h5>
     <form method="GET" action="{{ route('agronomia.index') }}">
         <div class="row g-3 align-items-end">
-            <div class="col-md-9">
-                <label class="form-label">Selecciona una Ubicación</label>
-                <select name="ID_Ubicacion" class="form-select" onchange="this.form.submit()">
-                    <option value="">-- Seleccionar --</option>
-                    @foreach ($ubicaciones as $u)
-                        <option value="{{ $u->ID_Ubicacion }}" {{ ($idUbicacion ?? '') == $u->ID_Ubicacion ? 'selected' : '' }}>
-                            {{ $u->Bloque }} / {{ $u->Nave }} / {{ $u->Cama }}
-                        </option>
+            <div class="col-md-3">
+                <label class="form-label">Bloque</label>
+                <select name="Bloque" class="form-select" onchange="this.form.submit()">
+                    <option value="">-- Todos --</option>
+                    @foreach ($bloques as $b)
+                        <option value="{{ $b }}" {{ request('Bloque') == $b ? 'selected' : '' }}>Bloque {{ $b }}</option>
                     @endforeach
                 </select>
             </div>
             <div class="col-md-3">
-                <button class="btn btn-primary w-100">🔍 VER HISTORIAL</button>
+                <label class="form-label">Nave</label>
+                <select name="Nave" class="form-select" onchange="this.form.submit()" {{ !request('Bloque') ? 'disabled' : '' }}>
+                    <option value="">-- Todas --</option>
+                    @if(isset($naves))
+                        @foreach ($naves as $n)
+                            <option value="{{ $n }}" {{ request('Nave') == $n ? 'selected' : '' }}>Nave {{ $n }}</option>
+                        @endforeach
+                    @endif
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Cama Específica</label>
+                <select name="ID_Ubicacion" class="form-select" {{ !request('Nave') ? 'disabled' : '' }}>
+                    <option value="">-- Seleccionar Cama --</option>
+                    @if(isset($camasFiltradas))
+                        @foreach ($camasFiltradas as $u)
+                            <option value="{{ $u->ID_Ubicacion }}" {{ request('ID_Ubicacion') == $u->ID_Ubicacion ? 'selected' : '' }}>
+                                Cama {{ $u->Cama }} ({{ number_format($u->Metros_Lineales, 1) }}m)
+                            </option>
+                        @endforeach
+                    @endif
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100" {{ !request('Nave') ? 'disabled' : '' }}>🔍 BUSCAR</button>
             </div>
         </div>
     </form>
 </div>
 
 @if ($historial->count())
-    @php $activa = $historial->firstWhere('Fecha_Fin', null); @endphp
     @if ($activa && isset($activa->ID_Siembra))
         <div class="card card-dashboard p-4 mb-4 border-primary">
             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -123,10 +144,9 @@
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Estado de Siembra</label>
-                                    <select name="Estado_Siembra" class="form-select">
-                                        <option value="SEMBRADA" {{ $activa->Estado_Siembra == 'SEMBRADA' ? 'selected' : '' }}>SEMBRADA</option>
-                                        <option value="EN_PRODUCCION" {{ $activa->Estado_Siembra == 'EN_PRODUCCION' ? 'selected' : '' }}>EN PRODUCCIÓN</option>
-                                        <option value="ERRADICADA" {{ $activa->Estado_Siembra == 'ERRADICADA' ? 'selected' : '' }}>ERRADICADA</option>
+                                    <select name="Estado" class="form-select">
+                                        <option value="ACTIVA" {{ $u->Estado == 'ACTIVA' ? 'selected' : '' }}>ACTIVA</option>
+                                        <option value="INACTIVA" {{ $u->Estado == 'INACTIVA' ? 'selected' : '' }}>INACTIVA</option>
                                     </select>
                                 </div>
                                 <div class="col-md-4">
@@ -136,10 +156,6 @@
                                 <div class="col-md-4">
                                     <label class="form-label">Cantidad Plantas</label>
                                     <input type="number" name="Cantidad_Plantas" value="{{ $activa->Cantidad_Plantas }}" class="form-control">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Fecha Fin (Término)</label>
-                                    <input type="date" name="Fecha_Fin" value="{{ $activa->Fecha_Fin ? $activa->Fecha_Fin->format('Y-m-d') : '' }}" class="form-control">
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Fecha Erradicación</label>
@@ -169,7 +185,6 @@
                         <th>Estado</th>
                         <th>Ciclo</th>
                         <th>F. Siembra</th>
-                        <th>F. Fin</th>
                         <th>F. Erradicación</th>
                         <th>Plantas</th>
                         <th>Densidad</th>
@@ -189,7 +204,6 @@
                             <td>{{ $h->Estado_Siembra }}</td>
                             <td>{{ $h->Ciclo_Actual }}</td>
                             <td>{{ $h->Fecha_Siembra ? $h->Fecha_Siembra->format('Y-m-d') : '' }}</td>
-                            <td><span class="badge bg-secondary">{{ $h->Fecha_Fin ? $h->Fecha_Fin->format('Y-m-d') : 'ACTIVA' }}</span></td>
                             <td><span class="badge bg-dark">{{ $h->Fecha_Erradicacion ? $h->Fecha_Erradicacion->format('Y-m-d') : '-' }}</span></td>
                             <td>{{ number_format($h->Cantidad_Plantas, 0) }}</td>
                             <td>{{ $h->Densidad_Plantacion }}</td>
@@ -244,10 +258,6 @@
                                                         <input type="number" name="Cantidad_Plantas" value="{{ $h->Cantidad_Plantas }}" class="form-control">
                                                     </div>
                                                     <div class="col-md-4">
-                                                        <label class="form-label">Fecha Fin (Término)</label>
-                                                        <input type="date" name="Fecha_Fin" value="{{ $h->Fecha_Fin ? $h->Fecha_Fin->format('Y-m-d') : '' }}" class="form-control">
-                                                    </div>
-                                                    <div class="col-md-4">
                                                         <label class="form-label">Fecha Erradicación</label>
                                                         <input type="date" name="Fecha_Erradicacion" value="{{ $h->Fecha_Erradicacion ? $h->Fecha_Erradicacion->format('Y-m-d') : '' }}" class="form-control">
                                                     </div>
@@ -277,15 +287,25 @@
     <form method="POST" action="{{ route('agronomia.siembra') }}">
         @csrf
         <div class="row g-3">
-            <div class="col-md-4">
-                <label class="form-label">Ubicación</label>
-                <select name="ID_Ubicacion" class="form-select" required>
-                    <option value="">-- Seleccionar --</option>
-                    @foreach ($ubicaciones as $u)
-                        <option value="{{ $u->ID_Ubicacion }}" {{ ($idUbicacion ?? '') == $u->ID_Ubicacion ? 'selected' : '' }}>
-                            {{ $u->Bloque }} / {{ $u->Nave }} / {{ $u->Cama }}
-                        </option>
+            <div class="col-md-2">
+                <label class="form-label">Bloque</label>
+                <select id="filtro_bloque" class="form-select">
+                    <option value="">-- Bloque --</option>
+                    @foreach ($bloques as $b)
+                        <option value="{{ $b }}">{{ $b }}</option>
                     @endforeach
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Nave</label>
+                <select id="filtro_nave" class="form-select" disabled>
+                    <option value="">-- Nave --</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Cama</label>
+                <select id="filtro_cama" name="ID_Ubicacion" class="form-select" required disabled>
+                    <option value="">-- Cama --</option>
                 </select>
             </div>
             <div class="col-md-4">
@@ -355,3 +375,50 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Pasamos todas las ubicaciones desde PHP a JavaScript
+        const ubicaciones = @json($ubicaciones);
+        
+        const selBloque = document.getElementById('filtro_bloque');
+        const selNave = document.getElementById('filtro_nave');
+        const selCama = document.getElementById('filtro_cama');
+
+        // Cuando cambia el Bloque
+        selBloque.addEventListener('change', function() {
+            // Reiniciamos Nave y Cama
+            selNave.innerHTML = '<option value="">-- Nave --</option>';
+            selCama.innerHTML = '<option value="">-- Cama --</option>';
+            selCama.disabled = true;
+
+            if (this.value) {
+                // Filtramos las naves únicas de ese bloque
+                const naves = [...new Set(ubicaciones.filter(u => u.Bloque == this.value).map(u => u.Nave))];
+                naves.forEach(n => selNave.innerHTML += `<option value="${n}">${n}</option>`);
+                selNave.disabled = false;
+            } else {
+                selNave.disabled = true;
+            }
+        });
+
+        // Cuando cambia la Nave
+        selNave.addEventListener('change', function() {
+            // Reiniciamos Cama
+            selCama.innerHTML = '<option value="">-- Cama --</option>';
+            
+            if (this.value) {
+                // Filtramos las camas exactas de ese Bloque y Nave
+                const camas = ubicaciones.filter(u => u.Bloque == selBloque.value && u.Nave == this.value);
+                camas.forEach(c => {
+                    selCama.innerHTML += `<option value="${c.ID_Ubicacion}">Cama ${c.Cama} (${c.Metros_Lineales}m)</option>`;
+                });
+                selCama.disabled = false;
+            } else {
+                selCama.disabled = true;
+            }
+        });
+    });
+</script>
+@endpush

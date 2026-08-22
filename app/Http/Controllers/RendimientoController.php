@@ -14,11 +14,6 @@ use Illuminate\Support\Facades\DB;
 
 class RendimientoController extends Controller
 {
-    public const UMBRALES = [
-        'DESHOJE' => ['verde' => 3.5, 'naranja' => 3],
-        'CORTE LIMONIUM' => ['verde' => 300, 'naranja' => 250],
-        'CORTE STATICE' => ['verde' => 400, 'naranja' => 350],
-    ];
 
     public function index(Request $request)
     {
@@ -65,9 +60,22 @@ class RendimientoController extends Controller
             'ID_Usuario' => 'required|integer|exists:dim_usuarios,ID_Usuario',
             'ID_Labor' => 'required|integer|exists:dim_labores,ID_Labor',
             'Hora_Inicio' => 'required', 
-            'Hora_Fin' => 'required',
-            // 'Cantidad' ya no es strictly required aquí porque podría venir el array 'variantes'
+            'Hora_Fin' => 'required|after:Hora_Inicio',
         ]);
+
+        $existeTraslape = \App\Models\RendimientoLabor::where('ID_Usuario', $request->ID_Usuario)
+            ->where('Fecha', $request->Fecha)
+            ->where('ID_Rendimiento', '!=', $id)
+            ->where(function ($query) use ($request) {
+                $query->where('Hora_Inicio', '<', $request->Hora_Fin)
+                    ->where('Hora_Fin', '>', $request->Hora_Inicio);
+            })
+            ->exists();
+
+        // 3. Bloquear el guardado si hay choque de horarios
+        if ($existeTraslape) {
+            return back()->withErrors(['error' => '¡Choque de horarios! Este colaborador ya tiene otra tarea registrada que se cruza con este rango de horas.']);
+        }
 
         $registro = RendimientoLabor::findOrFail($id);
         $rolNombre = session('rol_nombre', 'OPERARIO');
@@ -274,6 +282,19 @@ class RendimientoController extends Controller
             'Hora_Inicio' => ['required', 'regex:/^\d{2}:\d{2}$/'],
             'Hora_Fin' => ['required', 'regex:/^\d{2}:\d{2}$/'],
         ]);
+
+        // VALIDACIÓN CONTRA DUPLICADOS ---
+        $existeTraslape = \App\Models\RendimientoLabor::where('ID_Usuario', $request->ID_Usuario)
+            ->where('Fecha', $request->Fecha)
+            ->where(function ($query) use ($request) {
+                $query->where('Hora_Inicio', '<', $request->Hora_Fin)
+                      ->where('Hora_Fin', '>', $request->Hora_Inicio);
+            })
+            ->exists();
+
+        if ($existeTraslape) {
+            return back()->withErrors(['error' => '¡Choque de horarios! Este colaborador ya tiene una tarea que se cruza con este rango de horas.']);
+        }
 
         $rolNombre = session('rol_nombre', 'OPERARIO');
         $usuarioAuth = auth()->user();

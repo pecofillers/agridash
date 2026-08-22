@@ -40,14 +40,11 @@ class Rbac
             'editar' => 'Ver y Editar',
         ],
         'agronomia' => [
-            'historial' => 'Historial de Cama',
             'siembra' => 'Registrar Siembra',
-            'variedades' => 'Catalogo de Variedades',
-            'consolidado_bloque' => 'Consolidado por Bloque', // <-- AGREGAR ESTA LÍNEA
+            'consolidado_bloque' => 'Consolidado por Bloque',
         ],
         'administracion_ubicaciones' => [
-            'crear' => 'Crear Camas / Naves',
-            'listado' => 'Ver Estructura',
+            'listado' => 'Crear Camas / Naves',
         ],
         'administracion_roles' => [
             'editar' => 'Gestion de Permisos y Roles',

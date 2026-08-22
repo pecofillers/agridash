@@ -20,6 +20,17 @@
     <div class="alert alert-danger">{{ session('error') }}</div>
 @endif
 
+@if($errors->any())
+    <div class="alert alert-danger">
+        <ul class="mb-0">
+            @foreach ($errors->all() as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+    </div>
+@endif
+
+
 <div class="card card-dashboard p-4 mb-4">
     <h5>📝 Ingreso de Tiempos y Producción</h5>
     
