@@ -68,7 +68,7 @@
             <div class="col-md-6" id="containerVariantes" style="display: none;">
                 <label class="form-label text-primary font-weight-bold">🌸 Cantidades por Variante</label>
                 <div class="row g-2" id="variantesInputsContainer">
-                    </div>
+                </div>
             </div>
         </div>
 
@@ -112,8 +112,23 @@
             </thead>
             <tbody>
                 @forelse ($rendimientos ?? [] as $item)
+                    @php
+                        // Lógica para validar las 24 horas
+                        $fechaRef = $item->updated_at ?? $item->created_at;
+                        $dentroDelLimite = true;
+                        if ($fechaRef) {
+                            $dentroDelLimite = \Carbon\Carbon::parse($fechaRef)->diffInHours(now()) <= 24;
+                        }
+                        $puedeEditar = in_array($rolNombre ?? '', ['ADMIN', 'SUPERADMIN']) || $dentroDelLimite;
+                    @endphp
                     <tr>
-                        <td>{{ $item->Fecha ? \Carbon\Carbon::parse($item->Fecha)->format('Y-m-d') : '' }}</td>
+                        <td>
+                            {{ $item->Fecha ? \Carbon\Carbon::parse($item->Fecha)->format('Y-m-d') : '' }}
+                            <br>
+                            <small class="text-muted" title="Fecha de última modificación">
+                                Mod: {{ $fechaRef ? \Carbon\Carbon::parse($fechaRef)->format('d/m/Y H:i') : 'N/D' }}
+                            </small>
+                        </td>
                         <td>{{ $item->usuario ? trim(($item->usuario->Nombre ?? '') . ' ' . ($item->usuario->Apellidos ?? '')) ?: $item->usuario->Username : 'N/D' }}</td>
                         <td><span class="badge bg-secondary">{{ $item->labor->Nombre_Labor ?? 'N/D' }}</span></td>
                         <td>{{ $item->Hora_Inicio }}</td>
@@ -134,17 +149,24 @@
                         </td>
                         <td><strong>{{ number_format($item->Rendimiento_Hora, 2) }}</strong></td>
                         <td class="text-center">
-                            <div class="d-flex justify-content-center gap-2">
-                                <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalEditar{{ $item->ID_Rendimiento }}" title="Editar">✏️</button>
-                                <form action="{{ route('rendimiento.eliminar', $item->ID_Rendimiento) }}" method="POST" onsubmit="return confirm('¿Estás seguro de eliminar este registro de forma permanente?');">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">🗑️</button>
-                                </form>
-                            </div>
+                            @if ($puedeEditar)
+                                <div class="d-flex justify-content-center gap-2">
+                                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalEditar{{ $item->ID_Rendimiento }}" title="Editar">✏️</button>
+                                    <form action="{{ route('rendimiento.eliminar', $item->ID_Rendimiento) }}" method="POST" onsubmit="return confirm('¿Estás seguro de eliminar este registro de forma permanente?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">🗑️</button>
+                                    </form>
+                                </div>
+                            @else
+                                <span class="badge bg-light text-muted border" title="Bloqueado: Han pasado más de 24 horas desde su registro">
+                                    🔒 Bloqueado
+                                </span>
+                            @endif
                         </td>
                     </tr>
 
+                    @if ($puedeEditar)
                     <div class="modal fade" id="modalEditar{{ $item->ID_Rendimiento }}" tabindex="-1" aria-hidden="true">
                         <div class="modal-dialog">
                             <div class="modal-content">
@@ -231,6 +253,7 @@
                             </div>
                         </div>
                     </div>
+                    @endif
                 @empty
                     <tr>
                         <td colspan="8" class="text-center text-muted py-4">No hay registros guardados hoy para tu grupo asignado.</td>
@@ -252,20 +275,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function actualizarFormularioCreacion() {
         const selectedOption = selectLabor.options[selectLabor.selectedIndex];
-        // Leemos la propiedad 'data-variantes' directamente desde la DB
         const variantesStr = selectedOption ? (selectedOption.getAttribute('data-variantes') || '') : '';
 
-        // Limpiamos el contenedor
         variantesContainerDiv.innerHTML = '';
 
         if (variantesStr.trim() !== '') {
-            // Ocultar labor simple
             containerSimple.style.display = 'none';
             inputSimple.removeAttribute('required');
             inputSimple.disabled = true; 
             inputSimple.value = '';
             
-            // Separar el texto "DETIERRA, DEARENA" en un array y crear un input por cada uno
             const variantesArray = variantesStr.split(',');
             variantesArray.forEach((v, index) => {
                 const nombreVar = v.trim();
@@ -281,7 +300,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
             containerVariantes.style.display = 'block';
         } else {
-            // Activar labor simple
             containerSimple.style.display = 'block';
             inputSimple.setAttribute('required', 'required');
             inputSimple.disabled = false;

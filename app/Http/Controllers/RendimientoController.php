@@ -32,7 +32,10 @@ class RendimientoController extends Controller
 
         $queryUsuarios = Usuario::with('grupo')->where('Estado', 'ACTIVO');
         $queryRendimientos = RendimientoLabor::with(['usuario', 'grupo', 'labor', 'detalles'])
-            ->whereDate('Fecha', $hoy);
+            ->where(function($query) use ($hoy) {
+                $query->whereDate('created_at', $hoy)
+                      ->orWhereDate('updated_at', $hoy);
+            });
 
         // Si NO es Administrador ni Superadmin, filtramos exclusivamente por los grupos del supervisor
         if (!in_array($rolNombre, ['ADMIN', 'SUPERADMIN'])) {
@@ -46,7 +49,7 @@ class RendimientoController extends Controller
         $grupos = Grupo::with('usuarios')->orderBy('Nombre_Grupo')->get();
         $labores = Labor::orderBy('Nombre_Labor')->get();
 
-        $rendimientos = $queryRendimientos->latest('ID_Rendimiento')->get();
+        $rendimientos = $queryRendimientos->orderBy('updated_at', 'desc')->get();
 
         $supervisores = Usuario::whereHas('rol', function ($query) {
             $query->where('Nombre_Rol', 'SUPERVISOR');
@@ -74,6 +77,14 @@ class RendimientoController extends Controller
             $grupos = $this->gruposDelSupervisor($usuarioAuth?->Username);
             if (!in_array($registro->ID_Grupo, $grupos, true)) {
                 return back()->with('error', 'No tienes permisos para modificar este registro.');
+            }
+
+            $horasLímite = 24; // Puedes cambiarlo a 48 horas según tu política
+        
+            $fechaReferencia = $registro->updated_at ?? $registro->created_at;
+
+            if ($fechaReferencia && $fechaReferencia->diffInHours(now()) > $horasLímite) {
+                return back()->with('error', "El tiempo límite para editar este registro ({$horasLímite} horas desde su creación) ha expirado. Contacta al Administrador.");
             }
         }
 
@@ -163,11 +174,14 @@ class RendimientoController extends Controller
             if (!in_array($registro->ID_Grupo, $grupos, true)) {
                 return back()->with('error', 'No tienes permisos para eliminar este registro.');
             }
+
+            $fechaReferencia = $registro->updated_at ?? $registro->created_at;
+            if ($fechaReferencia && $fechaReferencia->diffInHours(now()) > 24) {
+                return back()->with('error', 'No puedes eliminar registros creados o modificados hace más de 24 horas.');
+            }
         }
 
-        // Eliminar el registro (gracias a 'onDelete cascade', los detalles de variantes se borran solos)
         $registro->delete();
-
         return back()->with('success', 'Registro eliminado correctamente.');
     }
 

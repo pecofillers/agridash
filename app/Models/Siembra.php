@@ -28,9 +28,15 @@ class Siembra extends Model
         'Fecha_Pinch' => 'date',
         'Fecha_Hormona' => 'date',
         'Fecha_Erradicacion' => 'date',
-        'Metros_Lineales' => 'decimal:2',
-        'Densidad_Plantacion' => 'decimal:2',
     ];
+
+    public function getDensidadPlantacionAttribute()
+    {
+        if ($this->ubicacion && $this->ubicacion->Metros_Lineales > 0) {
+            return round($this->Cantidad_Plantas / $this->ubicacion->Metros_Lineales, 2);
+        }
+        return 0;
+    }
 
     public function variedad()
     {

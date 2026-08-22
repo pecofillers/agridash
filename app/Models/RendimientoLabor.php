@@ -8,7 +8,7 @@ class RendimientoLabor extends Model
 {
     protected $table = 'fact_rendimientos_labor';
     protected $primaryKey = 'ID_Rendimiento';
-    public $timestamps = false;
+    public $timestamps = true;
     protected $keyType = 'int';
 
     protected $fillable = [
