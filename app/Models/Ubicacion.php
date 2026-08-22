@@ -16,7 +16,12 @@ class Ubicacion extends Model
     protected $keyType = 'int';
     public $timestamps = false;
 
-    protected $fillable = ['Bloque', 'Nave', 'Cama', 'Estado'];
+    protected $fillable = ['Bloque', 'Nave', 'Cama', 'Estado', 'Metros_Lineales', 'Cuadros'];
+
+    protected $casts = [
+        'Metros_Lineales' => 'decimal:2',
+        'Cuadros'         => 'integer',
+    ];
 
     public function siembras()
     {

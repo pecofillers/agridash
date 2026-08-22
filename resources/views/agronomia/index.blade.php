@@ -74,7 +74,6 @@
         <div class="card card-dashboard p-4 mb-4 border-primary">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h5 class="mb-0">🌱 Siembra Activa</h5>
-                <!-- Botón rápido para abrir modal de edición de esta siembra activa -->
                 <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editarSiembra{{ $activa->ID_Siembra }}">
                     ✏️ Editar / Finalizar / Erradicar
                 </button>
@@ -83,6 +82,7 @@
                 <div class="col-md-3">
                     <div class="text-muted small">Ubicación</div>
                     <div class="fs-5 fw-bold">{{ $activa->ubicacion->Bloque }} / {{ $activa->ubicacion->Nave }} / {{ $activa->ubicacion->Cama }}</div>
+                    <div class="small text-muted">{{ number_format($activa->ubicacion->Metros_Lineales, 2) }} mts | {{ $activa->ubicacion->Cuadros ?? 0 }} cuadros</div>
                 </div>
                 <div class="col-md-3">
                     <div class="text-muted small">Variedad Actual</div>
@@ -99,7 +99,6 @@
             </div>
         </div>
 
-        <!-- MODAL DE EDICIÓN RÁPIDA PARA LA SIEMBRA ACTIVA -->
         <div class="modal fade" id="editarSiembra{{ $activa->ID_Siembra }}" tabindex="-1">
             <div class="modal-dialog modal-lg">
                 <div class="modal-content">
@@ -112,7 +111,6 @@
                         </div>
                         <div class="modal-body">
                             <div class="row g-3">
-                                <!-- NUEVO: Selector para corregir la Variedad -->
                                 <div class="col-md-4">
                                     <label class="form-label">Variedad</label>
                                     <select name="ID_Variedad" class="form-select" required>
@@ -146,10 +144,6 @@
                                 <div class="col-md-4">
                                     <label class="form-label">Fecha Erradicación</label>
                                     <input type="date" name="Fecha_Erradicacion" value="{{ $activa->Fecha_Erradicacion ? $activa->Fecha_Erradicacion->format('Y-m-d') : '' }}" class="form-control">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Metros Lineales</label>
-                                    <input type="number" step="0.1" name="Metros_Lineales" value="{{ $activa->Metros_Lineales }}" class="form-control">
                                 </div>
                             </div>
                         </div>
@@ -188,7 +182,6 @@
                             <td>{{ $h->ubicacion->Bloque ?? 'N/A' }} / {{ $h->ubicacion->Nave ?? 'N/A' }} / {{ $h->ubicacion->Cama ?? 'N/A' }}</td>
                             <td>{{ $h->variedad->Nombre_Variedad ?? $h->ID_Variedad }}</td>
                             <td>
-                                <!-- Mostrar el color de la variedad -->
                                 <span class="badge" style="background-color: {{ $h->variedad->Color ?? '#6c757d' }}; color: #fff;">
                                     {{ $h->variedad->Color ?? 'N/A' }}
                                 </span>
@@ -202,7 +195,6 @@
                             <td>{{ $h->Densidad_Plantacion }}</td>
                             <td class="text-center">
                                 @if (!empty($h->ID_Siembra))
-                                    <!-- Botón seguro que solo aparece si hay un ID válido -->
                                     <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editarSiembra{{ $h->ID_Siembra }}">
                                         ✏️ Editar
                                     </button>
@@ -213,7 +205,6 @@
                         </tr>
 
                         @if (!empty($h->ID_Siembra))
-                            <!-- MODAL DE EDICIÓN INDIVIDUAL PROTEGIDO -->
                             <div class="modal fade" id="editarSiembra{{ $h->ID_Siembra }}" tabindex="-1">
                                 <div class="modal-dialog modal-lg">
                                     <div class="modal-content">
@@ -260,10 +251,6 @@
                                                         <label class="form-label">Fecha Erradicación</label>
                                                         <input type="date" name="Fecha_Erradicacion" value="{{ $h->Fecha_Erradicacion ? $h->Fecha_Erradicacion->format('Y-m-d') : '' }}" class="form-control">
                                                     </div>
-                                                    <div class="col-md-4">
-                                                        <label class="form-label">Metros Lineales</label>
-                                                        <input type="number" step="0.1" name="Metros_Lineales" value="{{ $h->Metros_Lineales }}" class="form-control">
-                                                    </div>
                                                 </div>
                                             </div>
                                             <div class="modal-footer">
@@ -290,7 +277,7 @@
     <form method="POST" action="{{ route('agronomia.siembra') }}">
         @csrf
         <div class="row g-3">
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <label class="form-label">Ubicación</label>
                 <select name="ID_Ubicacion" class="form-select" required>
                     <option value="">-- Seleccionar --</option>
@@ -301,7 +288,7 @@
                     @endforeach
                 </select>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <label class="form-label">Variedad y Color</label>
                 <select name="ID_Variedad" class="form-select" required>
                     <option value="">-- Seleccionar --</option>
@@ -317,10 +304,6 @@
             <div class="col-md-2">
                 <label class="form-label">Plantas</label>
                 <input type="number" name="Cantidad_Plantas" min="1" class="form-control" required>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Metros Lineales</label>
-                <input type="number" name="Metros_Lineales" min="0.1" step="0.1" class="form-control" required>
             </div>
         </div>
         <div class="row g-3 mt-1">
@@ -343,10 +326,6 @@
             <div class="col-md-2">
                 <label class="form-label">Fecha Hormona (Opcional)</label>
                 <input type="date" name="Fecha_Hormona" class="form-control">
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Fecha Erradicación (Opcional)</label>
-                <input type="date" name="Fecha_Erradicacion" class="form-control">
             </div>
             <div class="col-md-3 d-flex align-items-end">
                 <button class="btn btn-success w-100">🌱 GUARDAR SIEMBRA</button>
