@@ -15,8 +15,7 @@ return new class extends Migration
             // Añadir las fechas agronómicas
             $table->date('Fecha_Pinch')->nullable()->after('Fecha_Siembra');
             $table->date('Fecha_Hormona')->nullable()->after('Fecha_Pinch');
-            $table->date('Fecha_Erradicacion')->nullable()->after('Fecha_Fin');
-            
+            $table->date('Fecha_Erradicacion')->nullable()->after('Fecha_Hormona');
             // Opcional pero recomendado para el "Rebrote"
             $table->integer('Ciclo_Actual')->default(1)->after('Estado_Siembra')->comment('Para identificar si es primer corte o rebrote');
         });

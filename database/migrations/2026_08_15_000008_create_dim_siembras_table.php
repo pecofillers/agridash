@@ -6,13 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * dim_siembras: historial de siembras por cama (referencia dim_ubicaciones,
-     * no columnas Bloque/Nave/Cama sueltas). Fecha_Fin NULL = siembra ACTIVA.
-     * Densidad_Plantacion es una columna calculada por MySQL
-     * (Cantidad_Plantas / Metros_Lineales), no se escribe manualmente.
-     * Sin timestamps (coincide con BD real).
-     */
     public function up(): void
     {
         Schema::create('dim_siembras', function (Blueprint $table) {
@@ -25,7 +18,6 @@ return new class extends Migration
             $table->date('Fecha_Siembra');
             $table->date('Fecha_Pinch')->nullable();
             $table->date('Fecha_Hormona')->nullable();
-            $table->date('Fecha_Fin')->nullable();
             $table->date('Fecha_Erradicacion')->nullable();
             $table->integer('Cantidad_Plantas');
             $table->decimal('Metros_Lineales', 10, 2);

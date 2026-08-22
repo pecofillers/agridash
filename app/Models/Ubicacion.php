@@ -12,11 +12,11 @@ class Ubicacion extends Model
 
     protected $table = 'dim_ubicaciones';
     protected $primaryKey = 'ID_Ubicacion';
-    public $incrementing = true;
+    public $incrementing = false;
     protected $keyType = 'int';
     public $timestamps = false;
 
-    protected $fillable = ['Bloque', 'Nave', 'Cama', 'Estado', 'Metros_Lineales', 'Cuadros'];
+    protected $fillable = ['ID_Ubicacion', 'Bloque', 'Nave', 'Cama', 'Estado', 'Metros_Lineales', 'Cuadros'];
 
     protected $casts = [
         'Metros_Lineales' => 'decimal:2',

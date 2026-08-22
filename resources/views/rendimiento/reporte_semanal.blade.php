@@ -16,7 +16,7 @@
 <h2 class="page-title mb-4">📅 REPORTE SEMANAL DE RENDIMIENTO</h2>
 
 <div class="card card-dashboard p-4 mb-4">
-    <form method="GET" action="{{ route('rendimiento.reporteSemanal') }}" class="row g-3 align-items-end">
+    <form method="GET" action="{{ route('rendimiento.reporteSemanal') }}" class="row g-3 align-items-end">    
         <div class="col-md-5">
             <label class="form-label">📅 Selecciona la semana</label>
             <select name="semana" class="form-select" onchange="this.form.submit()">

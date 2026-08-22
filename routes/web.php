@@ -85,6 +85,7 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware('permiso:administracion_ubicaciones,ver')->prefix('ubicaciones')->name('ubicaciones.')->group(function () {
         Route::get('/', [UbicacionesController::class, 'index'])->name('index')->middleware('check.submodulo:administracion_ubicaciones,listado');
         Route::post('/crear', [UbicacionesController::class, 'crear'])->name('crear')->middleware('check.submodulo:administracion_ubicaciones,crear');
+        Route::put('/actualizar/{id}', [UbicacionesController::class, 'actualizar'])->name('actualizar');
     });
 
 // Configuracion
@@ -99,7 +100,6 @@ Route::middleware(['auth'])->group(function () {
         
         // Sub-tab: Cambio de contrasenas
         Route::post('/cambiar-contrasena', [ConfiguracionController::class, 'cambiarContrasena'])->name('cambiar_contrasena'); 
-        
         Route::post('/restablecer-contrasena', [ConfiguracionController::class, 'restablecerContrasena'])->name('restablecer_contrasena')->middleware('check.submodulo:configuracion,credenciales');
     });
 });
