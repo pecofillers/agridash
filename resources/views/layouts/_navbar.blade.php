@@ -1,60 +1,46 @@
 @php
     $usuario = auth()->user();
     $rolId = $usuario?->ID_Rol;
-    $menu = \App\Support\Rbac::menuPorRol($rolId);
+    
+    $modulosConfig = \App\Support\Rbac::obtenerModulosConfig();
 
-    // Mapa submodulo => (ruta, etiqueta) — rutas especificas para control por pestaña
-    $submodulos = [
-        'rendimiento_colaboradores' => [
-            'registro_labor' => ['rendimiento.index', 'Registro de Labor'],
-            'reporte_graficas' => ['rendimiento.reporte', 'Reporte y Graficas'],
-            'reporte_semanal' => ['rendimiento.reporteSemanal', 'Reporte Semanal'],
-            'gestion_grupos' => ['rendimiento.grupos', 'Gestion de Grupos'],
-            'gestion_labores' => ['rendimiento.labores', 'Catalogo de Labores'],
-        ],
-        'registro_produccion' => [
-            'registro' => ['produccion.index', 'Ingresar Registro'],
-            'editar' => ['produccion.index', 'Ver y Editar'],
-        ],
-        'agronomia' => [
-            'siembra' => ['agronomia.index', 'Registrar Siembra'],
-            'consolidado_bloque' => ['agronomia.consolidado_bloque', 'Consolidado por Bloque'],
-        ],
-        'administracion_ubicaciones' => [
-            'listado' => ['ubicaciones.index', 'Crear Camas / Naves'],
-        ],
-        'administracion_roles' => [
-            'editar' => ['roles.index', 'Gestion de Permisos y Roles'],
-        ],
-        'gestion_usuarios' => [
-            'directorio' => ['usuarios.index', 'Directorio de Usuarios'],
-        ],
-        'configuracion' => [
-            'usuarios' => ['configuracion.index', 'Gestion de Usuarios'],
-            'credenciales' => ['configuracion.index', 'Cambio de Contrasena'],
-        ],
-    ];
+    $menuSuperior = [];
+    foreach ($modulosConfig as $claveMod => $cfg) {
+        // Obtenemos únicamente los submódulos que la BD autoriza estrictamente para este rol
+        $subsVisibles = \App\Support\Rbac::submodulosVisibles($rolId, $claveMod);
+        
+        $opciones = [];
+        foreach ($cfg['submodulos'] as $claveSub => $infoSub) {
+            // Verificamos de forma estricta que la clave del submódulo esté en la lista permitida
+            if (in_array($claveSub, $subsVisibles, true)) {
+                $opciones[] = [
+                    'ruta' => $infoSub['ruta'],
+                    'etiqueta' => $infoSub['etiqueta'],
+                    'activa' => request()->routeIs($infoSub['ruta'])
+                ];
+            }
+        }
 
-    // Mapa modulo => ruta base + icono
-    $modulosConfig = [
-        'vista_gerencial' => ['base' => 'dashboard', 'icono' => 'bi-graph-up-arrow'],
-        'rendimiento_colaboradores' => ['base' => 'rendimiento.index', 'icono' => 'bi-stopwatch'],
-        'registro_produccion' => ['base' => 'produccion.index', 'icono' => 'bi-clipboard-data'],
-        'agronomia' => ['base' => 'agronomia.index', 'icono' => 'bi-flower3'],
-        'administracion_ubicaciones' => ['base' => 'ubicaciones.index', 'icono' => 'bi-geo-alt'],
-        'gestion_usuarios' => ['base' => 'usuarios.index', 'icono' => 'bi-people'],
-        'administracion_roles' => ['base' => 'roles.index', 'icono' => 'bi-shield-lock'],
-        'configuracion' => ['base' => 'configuracion.index', 'icono' => 'bi-gear'],
-    ];
+        // Si el módulo tiene submódulos permitidos, lo agregamos incluyendo su 'base'
+        if (count($opciones) > 0) {
+            $menuSuperior[] = [
+                'clave' => $claveMod,
+                'etiqueta' => $cfg['etiqueta'],
+                'icono' => $cfg['icono'],
+                'base' => $cfg['base'], 
+                'opciones' => $opciones
+            ];
+        }
+    }
 
     $nombre_usuario = $usuario?->Nombre ?? 'Usuario';
     $partes = preg_split('/\s+/', trim($nombre_usuario));
     $iniciales = strtoupper(substr($partes[0] ?? 'A', 0, 1) . substr($partes[1] ?? '', 0, 1));
     $rolNombre = session('rol_nombre', 'SIN ROL');
 
-    // Modulos operativos (barra superior) — excluye los administrativos
     $modulosAdmin = ['gestion_usuarios', 'administracion_roles', 'configuracion'];
-    $menuSuperior = array_filter($menu, fn ($i) => !in_array($i['clave'], $modulosAdmin, true));
+    $menuOperativo = array_filter($menuSuperior, fn ($i) => !in_array($i['clave'], $modulosAdmin, true));
+    $menuAdmin = array_filter($menuSuperior, fn ($i) => in_array($i['clave'], $modulosAdmin, true));
 @endphp
 
 <nav class="navbar navbar-expand-lg agri-navbar sticky-top">
@@ -65,38 +51,24 @@
             <span class="brand-text">AGRIDASH</span>
         </a>
 
-        {{-- Boton colapsar (movil) --}}
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Alternar navegacion">
+        {{-- Botón colapsar (móvil) --}}
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Alternar navegación">
             <span class="navbar-toggler-icon"></span>
         </button>
 
-        {{-- Menu colapsable --}}
+        {{-- Menú colapsable --}}
         <div class="collapse navbar-collapse" id="mainNavbar">
-            {{-- Modulos operativos --}}
+            {{-- Módulos operativos --}}
             <ul class="navbar-nav me-auto">
-                @foreach ($menuSuperior as $item)
-                    @php
-                        $cfg = $modulosConfig[$item['clave']] ?? null;
-                        if (!$cfg) { continue; }
-                        $subsDef = $submodulos[$item['clave']] ?? null;
-                        $opciones = [];
-                        if ($subsDef) {
-                            foreach ($subsDef as $claveSub => $sub) {
-                                if (\App\Support\Rbac::tienePermisoSubmodulo($rolId, $item['clave'], $claveSub)) {
-                                    $opciones[] = ['ruta' => $sub[0], 'etiqueta' => $sub[1], 'activa' => request()->routeIs($sub[0])];
-                                }
-                            }
-                        }
-                        $active = request()->routeIs($cfg['base']);
-                    @endphp
-
-                    @if (count($opciones) > 0)
+                @foreach ($menuOperativo as $item)
+                    @php $active = request()->routeIs($item['base']); @endphp
+                    @if (count($item['opciones']) > 1)
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle {{ $active ? 'active' : '' }}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                <i class="bi {{ $cfg['icono'] }} me-1"></i> {{ $item['etiqueta'] }}
+                                <i class="bi {{ $item['icono'] }} me-1"></i> {{ $item['etiqueta'] }}
                             </a>
                             <ul class="dropdown-menu">
-                                @foreach ($opciones as $op)
+                                @foreach ($item['opciones'] as $op)
                                     <li>
                                         <a class="dropdown-item {{ $op['activa'] ? 'active' : '' }}" href="{{ route($op['ruta']) }}">
                                             {{ $op['etiqueta'] }}
@@ -107,15 +79,15 @@
                         </li>
                     @else
                         <li class="nav-item">
-                            <a class="nav-link {{ $active ? 'active' : '' }}" href="{{ route($cfg['base']) }}">
-                                <i class="bi {{ $cfg['icono'] }} me-1"></i> {{ $item['etiqueta'] }}
+                            <a class="nav-link {{ $active ? 'active' : '' }}" href="{{ route($item['opciones'][0]['ruta']) }}">
+                                <i class="bi {{ $item['icono'] }} me-1"></i> {{ $item['etiqueta'] }}
                             </a>
                         </li>
                     @endif
                 @endforeach
             </ul>
 
-            {{-- Usuario (avatar/rol) con administracion dentro --}}
+            {{-- Usuario (avatar/rol) con administración dentro --}}
             <ul class="navbar-nav">
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle d-flex align-items-center gap-2" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -131,51 +103,28 @@
                         </li>
                         <li><hr class="dropdown-divider"></li>
 
-                        {{-- Modulos de administracion dentro del dropdown del usuario --}}
-                        @foreach ($modulosAdmin as $claveAdmin)
-                            @php
-                                $itemAdmin = collect($menu)->firstWhere('clave', $claveAdmin);
-                                if (!$itemAdmin) { continue; }
-                                $cfgAdm = $modulosConfig[$claveAdmin] ?? null;
-                                if (!$cfgAdm) { continue; }
-                                $subsAdm = $submodulos[$claveAdmin] ?? null;
-                                $opcionesAdm = [];
-                                if ($subsAdm) {
-                                    foreach ($subsAdm as $claveSub => $sub) {
-                                        if (\App\Support\Rbac::tienePermisoSubmodulo($rolId, $claveAdmin, $claveSub)) {
-                                            $opcionesAdm[] = ['ruta' => $sub[0], 'etiqueta' => $sub[1], 'activa' => request()->routeIs($sub[0])];
-                                        }
-                                    }
-                                }
-                            @endphp
-                            @if ($itemAdmin)
+                        {{-- Módulos de administración dentro del dropdown del usuario --}}
+                        @foreach ($menuAdmin as $itemAdmin)
+                            <li>
+                                <h6 class="dropdown-header">
+                                    <i class="bi {{ $itemAdmin['icono'] }} me-1"></i> {{ $itemAdmin['etiqueta'] }}
+                                </h6>
+                            </li>
+                            @foreach ($itemAdmin['opciones'] as $opAdm)
                                 <li>
-                                    <h6 class="dropdown-header">
-                                        <i class="bi {{ $cfgAdm['icono'] }} me-1"></i> {{ $itemAdmin['etiqueta'] }}
-                                    </h6>
+                                    <a class="dropdown-item {{ $opAdm['activa'] ? 'active' : '' }}" href="{{ route($opAdm['ruta']) }}">
+                                        {{ $opAdm['etiqueta'] }}
+                                    </a>
                                 </li>
-                                @forelse ($opcionesAdm as $opAdm)
-                                    <li>
-                                        <a class="dropdown-item {{ $opAdm['activa'] ? 'active' : '' }}" href="{{ route($opAdm['ruta']) }}">
-                                            {{ $opAdm['etiqueta'] }}
-                                        </a>
-                                    </li>
-                                @empty
-                                    <li>
-                                        <a class="dropdown-item" href="{{ route($cfgAdm['base']) }}">
-                                            <i class="bi bi-grid me-2"></i> {{ $itemAdmin['etiqueta'] }}
-                                        </a>
-                                    </li>
-                                @endforelse
-                                <li><hr class="dropdown-divider"></li>
-                            @endif
+                            @endforeach
+                            <li><hr class="dropdown-divider"></li>
                         @endforeach
 
                         <li>
                             <form method="POST" action="{{ route('logout') }}">
                                 @csrf
                                 <button type="submit" class="dropdown-item text-danger">
-                                    <i class="bi bi-box-arrow-right me-2"></i> Cerrar Sesion
+                                    <i class="bi bi-box-arrow-right me-2"></i> Cerrar Sesión
                                 </button>
                             </form>
                         </li>

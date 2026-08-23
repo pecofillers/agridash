@@ -9,6 +9,7 @@ use App\Http\Controllers\UsuariosController;
 use App\Http\Controllers\RolesController;
 use App\Http\Controllers\UbicacionesController;
 use App\Http\Controllers\ConfiguracionController;
+use App\Http\Controllers\PlanoSiembraController;
 use Illuminate\Support\Facades\Route;
 
 // ------------------------------------------------------------------
@@ -55,17 +56,25 @@ Route::middleware(['auth'])->group(function () {
 
 // Agronomia
     Route::middleware('permiso:agronomia,ver')->prefix('agronomia')->name('agronomia.')->group(function () {
-        Route::get('/', [AgronomiaController::class, 'index'])->name('index')->middleware('check.submodulo:agronomia,historial');
+        Route::get('/', [AgronomiaController::class, 'index'])->name('index')->middleware('check.submodulo:agronomia,siembra');
         Route::post('/siembra', [AgronomiaController::class, 'registrarSiembra'])->name('siembra')->middleware('check.submodulo:agronomia,siembra');
         Route::post('/variedad', [AgronomiaController::class, 'crearVariedad'])->name('variedad')->middleware('check.submodulo:agronomia,variedades');
         Route::put('/{id}', [AgronomiaController::class, 'actualizar'])->name('actualizar');
         // Importación / Exportación masiva
         Route::get('/exportar-multibloque', [AgronomiaController::class, 'exportarSiembrasMultiBloque'])->name('exportar_multibloque')->middleware('check.submodulo:agronomia,siembra');
         Route::post('/importar-multibloque', [AgronomiaController::class, 'importarSiembrasMultiBloque'])->name('importar_multibloque')->middleware('check.submodulo:agronomia,siembra');
-        
+
         // Exportar comparativa de siembras
         Route::get('/consolidado-bloque', [AgronomiaController::class, 'consolidadoBloque'])->name('consolidado_bloque')->middleware('check.submodulo:agronomia,consolidado_bloque');
-});
+    });
+
+    // ------------------------------------------------------------------
+    // Planos de Siembra Interactivos (Vista tipo Excel)
+    // ------------------------------------------------------------------
+    Route::middleware('permiso:agronomia,ver')->prefix('planos')->name('plano_siembra.')->group(function () {
+        Route::get('/', [App\Http\Controllers\PlanoSiembraController::class, 'index'])->name('index');
+        Route::put('/actualizar-siembra/{idUbicacion}', [App\Http\Controllers\PlanoSiembraController::class, 'actualizarSiembra'])->name('actualizar_siembra');
+    });
 
     // Gestion de usuarios
     Route::middleware('permiso:gestion_usuarios,ver')->prefix('usuarios')->name('usuarios.')->group(function () {
@@ -88,7 +97,6 @@ Route::middleware(['auth'])->group(function () {
         Route::put('/actualizar/{id}', [UbicacionesController::class, 'actualizar'])->name('actualizar');
     });
 
-// Configuracion
     // Configuracion
     Route::middleware('permiso:configuracion,ver')->prefix('configuracion')->name('configuracion.')->group(function () {
         Route::get('/', [ConfiguracionController::class, 'index'])->name('index');

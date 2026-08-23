@@ -20,17 +20,17 @@ class AgronomiaController extends Controller
 {
     public function index(Request $request)
     {
-        // 1. Obtener la lista de bloques para el primer filtro
+        // Obtener la lista de bloques para el primer filtro
         $bloques = \App\Models\Ubicacion::bloques();
         $naves = [];
         $camasFiltradas = [];
 
-        // 2. Si se selecciona un bloque, buscamos sus naves
+        // Si se selecciona un bloque, buscamos sus naves
         if ($request->filled('Bloque')) {
             $naves = \App\Models\Ubicacion::naves($request->Bloque);
         }
 
-        // 3. Si se selecciona bloque y nave, buscamos las camas disponibles
+        // Si se selecciona bloque y nave, buscamos las camas disponibles
         if ($request->filled('Bloque') && $request->filled('Nave')) {
             $camasFiltradas = \App\Models\Ubicacion::where('Bloque', $request->Bloque)
                 ->where('Nave', $request->Nave)
@@ -39,20 +39,26 @@ class AgronomiaController extends Controller
 
         $idUbicacion = $request->ID_Ubicacion;
         $historial = collect();
+        $activa = null;
 
-        // 4. Si finalmente se seleccionó una cama, traemos su historial de siembra
+        // Si finalmente se seleccionó una cama, traemos su historial de siembra
         if ($idUbicacion) {
             $historial = \App\Models\Siembra::with(['ubicacion', 'variedad'])
                 ->where('ID_Ubicacion', $idUbicacion)
                 ->orderBy('Fecha_Siembra', 'desc')
                 ->get();
+
+            // Buscamos cuál es la siembra activa de esta cama (la que no tiene fecha de erradicación o está vigente)
+            $activa = $historial->whereNull('Fecha_Erradicacion')->first() 
+                      ?? $historial->where('Estado_Siembra', 'SEMBRADA')->first()
+                      ?? $historial->where('Estado_Siembra', 'EN_PRODUCCION')->first();
         }
 
         // 5. Ubicaciones completas para el modal de nueva siembra y variedades
         $ubicaciones = \App\Models\Ubicacion::all();
         $variedades = \App\Models\Variedad::all();
 
-        return view('agronomia.index', compact('ubicaciones', 'variedades', 'historial', 'idUbicacion', 'bloques', 'naves', 'camasFiltradas'));
+        return view('agronomia.index', compact('ubicaciones', 'variedades', 'historial', 'activa', 'idUbicacion', 'bloques', 'naves', 'camasFiltradas'));
     }
 
     public function registrarSiembra(Request $request)
@@ -148,7 +154,6 @@ class AgronomiaController extends Controller
     // DESCARGAR EXCEL MULTI-BLOQUE (TODA LA FINCA)
     public function exportarSiembrasMultiBloque()
     {
-        // Obtenemos todos los bloques registrados en la finca
         $bloques = \App\Models\Ubicacion::select('Bloque')->distinct()->orderBy('Bloque')->pluck('Bloque');
 
         if ($bloques->isEmpty()) {
@@ -158,13 +163,12 @@ class AgronomiaController extends Controller
         $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
         $sheetIndex = 0;
 
-        // Ya no necesitamos la columna 'bloque' porque la pestaña define el bloque
-        $cabeceras = ['nave', 'cama', 'variedad', 'fecha_siembra', 'plantas', 'metros', 'estado', 'ciclo', 'fecha_pinch', 'fecha_hormona', 'fecha_erradicacion'];
+        // 🟢 Añadimos 'color' en las cabeceras en el orden correcto
+        $cabeceras = ['nave', 'cama', 'variedad', 'color', 'fecha_siembra', 'plantas', 'metros', 'estado', 'ciclo', 'fecha_pinch', 'fecha_hormona', 'fecha_erradicacion'];
 
         foreach ($bloques as $bloque) {
             $sheet = $sheetIndex === 0 ? $spreadsheet->getActiveSheet() : $spreadsheet->createSheet();
 
-            // Limpiamos el nombre para la pestaña (ej. si dice "BLOQUE 1" en BD, la pestaña se llama "BLOQUE 1")
             $tituloHoja = substr($bloque, 0, 31);
             $sheet->setTitle($tituloHoja);
 
@@ -175,22 +179,23 @@ class AgronomiaController extends Controller
                 $col++;
             }
 
-            // Consultar las siembras SOLO de este bloque
             $siembras = \App\Models\Siembra::whereHas('ubicacion', function($q) use ($bloque) {
                 $q->where('Bloque', $bloque);
             })->with(['ubicacion', 'variedad'])->orderBy('Fecha_Siembra', 'desc')->get();
 
-            // Llenar datos
+            // Llenar datos mapeando estrictamente cada columna para evitar desplazamientos
             $fila = 2;
             foreach ($siembras as $s) {
                 $sheet->setCellValue('A' . $fila, $s->ubicacion ? $s->ubicacion->Nave : '');
                 $sheet->setCellValue('B' . $fila, $s->ubicacion ? $s->ubicacion->Cama : '');
                 $sheet->setCellValue('C' . $fila, $s->variedad ? $s->variedad->Nombre_Variedad : '');
-                $sheet->setCellValue('D' . $fila, $s->Fecha_Siembra ? $s->Fecha_Siembra->format('Y-m-d') : '');
+                $sheet->setCellValue('D' . $fila, $s->variedad ? $s->variedad->Color : ''); // Color
+                $sheet->setCellValue('E' . $fila, $s->Fecha_Siembra ? $s->Fecha_Siembra->format('Y-m-d') : '');
                 $sheet->setCellValue('F' . $fila, $s->Cantidad_Plantas);
                 $sheet->setCellValue('G' . $fila, $s->Metros_Lineales);
                 $sheet->setCellValue('H' . $fila, $s->Estado_Siembra);
                 $sheet->setCellValue('I' . $fila, $s->Ciclo_Actual);
+                // 🟢 Fechas opcionales validadas para evitar el error de fechas vacías (-0001-11-30)
                 $sheet->setCellValue('J' . $fila, $s->Fecha_Pinch ? $s->Fecha_Pinch->format('Y-m-d') : '');
                 $sheet->setCellValue('K' . $fila, $s->Fecha_Hormona ? $s->Fecha_Hormona->format('Y-m-d') : '');
                 $sheet->setCellValue('L' . $fila, $s->Fecha_Erradicacion ? $s->Fecha_Erradicacion->format('Y-m-d') : '');

@@ -11,7 +11,7 @@ class RolesController extends Controller
 {
     public function index()
     {
-$roles = Rol::orderBy('Nombre_Rol')->get();
+        $roles = Rol::orderBy('Nombre_Rol')->get();
         $rolSeleccionado = null;
         $permisos = collect();
 
@@ -23,19 +23,32 @@ $roles = Rol::orderBy('Nombre_Rol')->get();
                 : collect();
         }
 
+        // Cargamos los módulos y submódulos de forma dinámica desde config/rbac.php
+        $configModulos = Rbac::obtenerModulosConfig();
+        $modulos = [];
+        $submodulos = [];
+
+        foreach ($configModulos as $claveMod => $datos) {
+            $modulos[$claveMod] = $datos['etiqueta'];
+            foreach ($datos['submodulos'] as $claveSub => $infoSub) {
+                // Compatible tanto si es texto plano como si es arreglo con 'etiqueta'
+                $submodulos[$claveMod][$claveSub] = is_array($infoSub) ? $infoSub['etiqueta'] : $infoSub;
+            }
+        }
+
         return view('roles.index', [
             'roles' => $roles,
             'rolSeleccionado' => $rolSeleccionado,
             'permisos' => $permisos,
-            'modulos' => Rbac::MODULOS,
-            'submodulos' => Rbac::SUBMODULOS,
+            'modulos' => $modulos,
+            'submodulos' => $submodulos,
         ]);
     }
 
     public function guardar(Request $request)
     {
         $request->validate([
-            'ID_Rol' => 'nullable|integer', // Agregamos el ID para distinguir edición de creación
+            'ID_Rol' => 'nullable|integer',
             'Nombre_Rol' => 'required|string|max:50',
             'Descripcion' => 'nullable|string|max:255',
         ]);
@@ -44,7 +57,6 @@ $roles = Rol::orderBy('Nombre_Rol')->get();
 
         // 1. Crear o actualizar el rol
         if ($request->ID_Rol) {
-            // Modo Edición
             $rol = Rol::findOrFail($request->ID_Rol);
             $rol->update([
                 'Nombre_Rol' => $nombre,
@@ -52,7 +64,6 @@ $roles = Rol::orderBy('Nombre_Rol')->get();
             ]);
             $mensaje = "Rol y permisos actualizados correctamente.";
         } else {
-            // Modo Creación (o sobrescribir si escriben el mismo nombre)
             $rol = Rol::where('Nombre_Rol', $nombre)->first();
             if ($rol) {
                 $rol->update(['Descripcion' => $request->Descripcion]);
@@ -65,22 +76,25 @@ $roles = Rol::orderBy('Nombre_Rol')->get();
         // 2. Borrar permisos viejos
         PermisoRol::where('ID_Rol', $rol->ID_Rol)->delete();
 
-        // 3. Insertar permisos por pestaña (submódulo)
-        $modulos = $request->input('submodulos', []);
-        foreach ($modulos as $modulo => $subsConcedidos) {
-            foreach (Rbac::SUBMODULOS[$modulo] ?? [] as $claveSub => $label) {
-                PermisoRol::create([
-                    'ID_Rol' => $rol->ID_Rol,
-                    'Modulo' => $modulo,
-                    'Submodulo' => $claveSub,
-                    'Permiso_Ver' => in_array($claveSub, $subsConcedidos, true),
-                ]);
+        // 3. Insertar permisos por pestaña (submódulo) usando la config centralizada
+        $configModulos = Rbac::obtenerModulosConfig();
+        $modulosInput = $request->input('submodulos', []);
+        
+        foreach ($modulosInput as $modulo => $subsConcedidos) {
+            if (isset($configModulos[$modulo]['submodulos'])) {
+                foreach ($configModulos[$modulo]['submodulos'] as $claveSub => $infoSub) {
+                    PermisoRol::create([
+                        'ID_Rol' => $rol->ID_Rol,
+                        'Modulo' => $modulo,
+                        'Submodulo' => $claveSub,
+                        'Permiso_Ver' => in_array($claveSub, $subsConcedidos, true),
+                    ]);
+                }
             }
         }
 
         Rbac::limpiarCache();
 
-        // Redirigir limpiando el parámetro ?rol= de la URL
         return redirect()->route('roles.index')->with('success', $mensaje);
     }
 
