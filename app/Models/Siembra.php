@@ -17,9 +17,9 @@ class Siembra extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'ID_Ubicacion', 'ID_Variedad', 'Fecha_Siembra',
-        'Cantidad_Plantas', 'Metros_Lineales', 'Densidad_Plantacion',
-        'Estado_Siembra', 'Ciclo_Actual', 'Fecha_Pinch', 'Fecha_Hormona', 'Fecha_Erradicacion'
+        'ID_Ubicacion', 'ID_Variedad','Fecha_Siembra',
+        'Cantidad_Plantas', 'Estado_Siembra', 'Ciclo_Actual',
+        'Fecha_Pinch', 'Fecha_Hormona', 'Fecha_Erradicacion'
     ];
 
     protected $casts = [
