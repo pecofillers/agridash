@@ -72,9 +72,10 @@ Route::middleware(['auth'])->group(function () {
     // Planos de Siembra Interactivos (Vista tipo Excel)
     // ------------------------------------------------------------------
     Route::middleware('permiso:agronomia,ver')->prefix('planos')->name('plano_siembra.')->group(function () {
-        Route::get('/', [App\Http\Controllers\PlanoSiembraController::class, 'index'])->name('index');
-        Route::put('/actualizar-siembra/{idUbicacion}', [App\Http\Controllers\PlanoSiembraController::class, 'actualizarSiembra'])->name('actualizar_siembra');
-    });
+    Route::get('/', [App\Http\Controllers\PlanoSiembraController::class, 'index'])->name('index');
+    Route::put('/actualizar-siembra/{idUbicacion}', [App\Http\Controllers\PlanoSiembraController::class, 'actualizarSiembra'])->name('actualizar_siembra');
+    Route::put('/actualizar-masivo', [App\Http\Controllers\PlanoSiembraController::class, 'actualizarMasivo'])->name('actualizar_masivo');
+});
 
     // Gestion de usuarios
     Route::middleware('permiso:gestion_usuarios,ver')->prefix('usuarios')->name('usuarios.')->group(function () {
