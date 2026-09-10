@@ -10,6 +10,7 @@ use App\Http\Controllers\RolesController;
 use App\Http\Controllers\UbicacionesController;
 use App\Http\Controllers\ConfiguracionController;
 use App\Http\Controllers\PlanoSiembraController;
+use App\Http\Controllers\InsumosController;
 use Illuminate\Support\Facades\Route;
 
 // ------------------------------------------------------------------
@@ -35,7 +36,10 @@ Route::middleware(['auth'])->group(function () {
     // Exportar e importar produccion
     Route::post('/produccion/importar-multinave', [App\Http\Controllers\ProduccionController::class, 'importarExcelMultiNave'])->name('produccion.importar_multinave');
     Route::get('/produccion/exportar-multinave', [App\Http\Controllers\ProduccionController::class, 'exportarExcelMultiNave'])->name('produccion.exportar_multinave');
-    
+    Route::post('/produccion/probar_enlace', [ProduccionController::class, 'probarEnlaceUnico'])->name('produccion.probar_enlace');
+    Route::post('/produccion/importar_onedrive', [ProduccionController::class, 'importarCarpetaOneDrive'])->name('produccion.importar_onedrive');
+    Route::post('/produccion/sincronizar-bloque', [ProduccionController::class, 'sincronizar_bloque'])->name('produccion.sincronizar_bloque');
+
     // Rendimiento
     Route::middleware('permiso:rendimiento_colaboradores,ver')->prefix('rendimiento')->name('rendimiento.')->group(function () {
         Route::get('/', [RendimientoController::class, 'index'])->name('index')->middleware('check.submodulo:rendimiento_colaboradores,registro_labor');
@@ -66,6 +70,10 @@ Route::middleware(['auth'])->group(function () {
 
         // Exportar comparativa de siembras
         Route::get('/consolidado-bloque', [AgronomiaController::class, 'consolidadoBloque'])->name('consolidado_bloque')->middleware('check.submodulo:agronomia,consolidado_bloque');
+        Route::get('/insumos', [InsumosController::class, 'index'])->name('insumos')->middleware('check.submodulo:agronomia,insumos');
+        Route::post('/insumos/guardar', [InsumosController::class, 'store'])->name('insumos.guardar')->middleware('check.submodulo:agronomia,insumos');
+        Route::get('/insumos/{insumo}/editar', [InsumosController::class, 'edit'])->name('insumos.editar')->middleware('check.submodulo:agronomia,insumos');
+        Route::put('/insumos/{insumo}', [InsumosController::class, 'update'])->name('insumos.actualizar')->middleware('check.submodulo:agronomia,insumos');
     });
 
     // ------------------------------------------------------------------
@@ -110,5 +118,8 @@ Route::middleware(['auth'])->group(function () {
         // Sub-tab: Cambio de contrasenas
         Route::post('/cambiar-contrasena', [ConfiguracionController::class, 'cambiarContrasena'])->name('cambiar_contrasena'); 
         Route::post('/restablecer-contrasena', [ConfiguracionController::class, 'restablecerContrasena'])->name('restablecer_contrasena')->middleware('check.submodulo:configuracion,credenciales');
+
+        Route::get('/configuracion-planillas', [ProduccionController::class, 'configuracionEnlaces'])->name('planillas.configuracion')->middleware('check.submodulo:configuracion,planillas');
+        Route::post('/configuracion-planillas/guardar', [ProduccionController::class, 'guardarEnlace'])->name('planillas.guardar')->middleware('check.submodulo:configuracion,planillas');
     });
 });

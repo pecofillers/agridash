@@ -39,6 +39,7 @@ return [
                 'siembra' => ['etiqueta' => 'Registrar Siembra', 'ruta' => 'agronomia.index'],
                 'consolidado_bloque' => ['etiqueta' => 'Consolidado por Bloque', 'ruta' => 'agronomia.consolidado_bloque'],
                 'planos' => ['etiqueta' => 'Plano de Siembras', 'ruta' => 'plano_siembra.index'],
+                'insumos' => ['etiqueta' => 'Insumos Diarios', 'ruta' => 'agronomia.insumos'],
             ]
         ],
         'administracion_ubicaciones' => [
@@ -72,6 +73,7 @@ return [
             'submodulos' => [
                 'usuarios' => ['etiqueta' => 'Gestion de Usuarios y Estados', 'ruta' => 'configuracion.index'],
                 'credenciales' => ['etiqueta' => 'Cambio de Contrasena', 'ruta' => 'configuracion.index'],
+                'planillas' => ['etiqueta' => 'Configuracion de Enlaces OneDrive', 'ruta' => 'configuracion.planillas.configuracion'],
             ]
         ],
     ]

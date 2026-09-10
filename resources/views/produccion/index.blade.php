@@ -3,12 +3,27 @@
 @section('title', 'Registro de Produccion')
 
 @section('content')
+<!-- BLOQUE DE ALERTAS Y NOTIFICACIONES -->
+@if(session('success'))
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {!! session('success') !!}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+@endif
+
+@if($errors->any())
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ $errors->first() }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+@endif
+
 <h2 class="page-title mb-4">👨‍🌾 REGISTRO DE PRODUCCION</h2>
 
 <div class="card card-dashboard p-4 mb-4 bg-light border-primary">
     <div class="row align-items-center">
         <div class="col-md-12 mb-3">
-            <h5>📚 Carga y Descarga Masiva Multi-Nave (.xlsx)</h5>
+            <h5>📚 Carga y Descarga Masiva de Produccion (Bloque_#.xlsx)</h5>
             <p class="text-muted small mb-0">
                 Cada pestaña/hoja del Excel corresponde a una Nave (ej: <i>Nave 1, Nave 2...</i>).
             </p>
@@ -34,31 +49,37 @@
             </form>
         </div>
 
-        <div class="col-md-6 ps-md-4">
-            <h6>📤 Subir/Actualizar un Bloque</h6>
-            <form action="{{ route('produccion.importar_multinave') }}" method="POST" enctype="multipart/form-data" class="row g-2 align-items-end mt-1">
+        <div class="col-md-6 border-end pe-md-4 mb-3 mb-md-0">
+            <h6 class="text-warning fw-bold">🧪 Prueba Piloto: Un solo Excel</h6>
+            <form action="{{ route('produccion.sincronizar_bloque') }}" method="POST" class="row g-2">
                 @csrf
-                <div class="col-5">
-                    <label class="form-label small fw-bold">Bloque a Cargar</label>
-                    <select name="bloque_default" class="form-select form-select-sm" required>
-                        <option value="">-- Bloque --</option>
-                        @foreach (\App\Models\Ubicacion::bloques() as $b)
-                            <option value="{{ $b }}">Bloque {{ $b }}</option>
-                        @endforeach
+                <div class="col-md-8">
+                    <select name="bloque" class="form-select form-select-sm" required>
+                        <option value="">Selecciona el bloque a sincronizar...</option>
+                        <!-- Aquí puedes iterar tus bloques -->
+                        <option value="1">Bloque 1</option>
+                        <option value="2">Bloque 2</option>
+                        <option value="3">Bloque 3</option>
+                        <option value="4">Bloque 4</option>
+                        <option value="5">Bloque 5</option>
+                        <option value="6">Bloque 6</option>
+                        <option value="7">Bloque 7</option>
+                        <option value="8">Bloque 8</option>
+                        <option value="9">Bloque 9</option>
+                        <option value="10">Bloque 10</option>
+                        <option value="11">Bloque 11</option>
+                        <option value="12">Bloque 12</option>
+                        <option value="13">Bloque 13</option>
                     </select>
                 </div>
-                <div class="col-4">
-                    <label class="form-label small fw-bold">Excel (.xlsx)</label>
-                    <input type="file" name="archivo_excel" class="form-control form-control-sm" accept=".xlsx, .xls" required>
-                </div>
-                <div class="col-3">
-                    <button type="submit" class="btn btn-primary btn-sm w-100">
-                        🚀 Subir
-                    </button>
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn-success btn-sm w-100">🔄 Sincronizar</button>
                 </div>
             </form>
         </div>
     </div>
+
+    
 </div>
 
 <div class="card card-dashboard p-4 mb-4">

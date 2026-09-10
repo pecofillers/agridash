@@ -4,10 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Produccion;
 use App\Models\Ubicacion;
+use App\Models\Planilla;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http; 
+use Illuminate\Support\Facades\File; 
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 use App\Imports\ProduccionImport;
 use App\Exports\ProduccionExport;
 
@@ -88,6 +92,8 @@ class ProduccionController extends Controller
         return back()->with('success', 'Registro corregido exitosamente.');
     }
 
+
+
     // EXPORTAR CSV NATIVO (Ahora con Bloque, Nave y Cama)
     public function exportarCsv()
     {
@@ -123,6 +129,192 @@ class ProduccionController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
+    public function sincronizarBloque(Request $request)
+    {
+        set_time_limit(0); 
+        ini_set('memory_limit', '2048M');
+
+        $request->validate([
+            'bloque' => 'required|string'
+        ]);
+
+        $bloqueSelected = $request->input('bloque');
+        
+        // 1. Buscamos el enlace guardado en la tabla planillas
+        $planilla = Planilla::where('bloque', $bloqueSelected)->first();
+
+        if (!$planilla || empty($planilla->url_onedrive)) {
+            return back()->withErrors("No hay un enlace de OneDrive configurado para el Bloque $bloqueSelected.");
+        }
+
+        // 2. Preparamos el enlace para descarga
+        $urlBase = explode('?', $planilla->url_onedrive)[0];
+        $urlDescarga = $urlBase . '?download=1';
+        $tempExcel = storage_path('app/temp_excel_' . time() . '.xlsx');
+
+        try {
+            // 3. Descargamos disfrazados de navegador
+            $response = \Illuminate\Support\Facades\Http::withHeaders([
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept'     => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+            ])->withOptions([
+                'allow_redirects' => true,
+                'verify'          => false,
+            ])->timeout(120)->get($urlDescarga);
+
+            if (!$response->successful()) {
+                return back()->withErrors("No se pudo descargar el Excel del Bloque $bloqueSelected desde OneDrive.");
+            }
+            
+            file_put_contents($tempExcel, $response->body());
+
+            // ... [AQUÍ VA EL RESTO DEL BUCLE FOREACH QUE YA TENÍAMOS PARA LEER LAS NAVES Y CAMAS] ...
+
+            unlink($tempExcel);
+            return back()->with('success', "¡Sincronización exitosa! Se actualizaron los datos del Bloque $bloqueSelected.");
+
+        } catch (\Exception $e) {
+            if(file_exists($tempExcel)) unlink($tempExcel);
+            return back()->withErrors("Error en la sincronización: " . $e->getMessage());
+        }
+    }
+
+    // 🚀 IMPORTAR CARPETA COMPLETA DESDE ENLACE DE ONEDRIVE
+    public function importarCarpetaOneDrive(Request $request)
+    {
+        // Damos tiempo y memoria ilimitada
+        set_time_limit(0); 
+        ini_set('memory_limit', '2048M'); 
+
+        $request->validate(['enlace_onedrive' => 'required|url']);
+
+        // Limpiamos el enlace y forzamos la descarga
+        $urlOriginal = $request->input('enlace_onedrive');
+        $urlBase = explode('?', $urlOriginal)[0];
+        $urlDescarga = $urlBase . '?download=1';
+        
+        $tempZipPath = storage_path('app/temp_onedrive_' . time() . '.zip');
+        $extractFolder = storage_path('app/temp_extract_' . time());
+
+        try {
+            // 1. Descargar la carpeta disfrazando a Laravel de Google Chrome
+            $response = \Illuminate\Support\Facades\Http::withHeaders([
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept'     => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+            ])->withOptions([
+                'allow_redirects' => true,
+                'verify'          => false,
+            ])->timeout(120)->get($urlDescarga);
+
+            if (!$response->successful()) {
+                return back()->withErrors('Microsoft bloqueó la descarga de la carpeta. Verifica el enlace.');
+            }
+
+            file_put_contents($tempZipPath, $response->body());
+
+            // 2. Descomprimir el archivo ZIP de OneDrive
+            $zip = new \ZipArchive;
+            if ($zip->open($tempZipPath) === TRUE) {
+                $zip->extractTo($extractFolder);
+                $zip->close();
+            } else {
+                throw new \Exception("El archivo descargado no es un formato válido o OneDrive lo entregó corrupto.");
+            }
+
+            // 3. Recorrer todos los archivos Excel extraídos
+            $archivosProcesados = 0;
+            $totalRegistrosGuardados = 0;
+            $archivos = \Illuminate\Support\Facades\File::allFiles($extractFolder);
+
+            foreach ($archivos as $file) {
+                if (!in_array($file->getExtension(), ['xlsx', 'xls'])) continue;
+
+                $filename = $file->getFilename();
+                
+                // Detectar a qué bloque pertenece (Ej: "Bloque 1.xlsx")
+                preg_match('/bloque\s*[_\-]?\s*([0-9a-zA-Z]+)/i', $filename, $matches);
+                $bloqueDetectado = $matches[1] ?? null;
+
+                if (!$bloqueDetectado) continue; 
+
+                $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file->getPathname());
+                $archivosProcesados++;
+
+                foreach ($spreadsheet->getAllSheets() as $sheet) {
+                    $nombreHojaOriginal = trim($sheet->getTitle()); 
+                    $soloNumeroNave = preg_replace('/[^0-9]/', '', $nombreHojaOriginal);
+                    if(empty($soloNumeroNave)) continue;
+
+                    $filas = $sheet->toArray();
+                    if (count($filas) < 3) continue;
+
+                    // Mapear semanas de la Fila 1
+                    $semanas = [];
+                    for ($col = 2; $col < count($filas[0]); $col++) {
+                        $valorCabecera = trim($filas[0][$col] ?? '');
+                        if (strpos($valorCabecera, '-') !== false) {
+                            $partes = explode('-', $valorCabecera);
+                            $semanas[$col] = ['anio' => (int) trim($partes[0]), 'semana' => (int) trim($partes[1])];
+                        }
+                    }
+
+                    if (empty($semanas)) continue;
+                    $camaActual = null;
+
+                    for ($i = 0; $i < count($filas); $i++) {
+                        $valorColA = trim($filas[$i][0] ?? '');
+                        if (stripos($valorColA, 'CAMA') !== false) {
+                            $camaActual = preg_replace('/[^0-9]/', '', $valorColA);
+                        }
+
+                        $concepto = strtoupper(trim($filas[$i][1] ?? ''));
+
+                        if ($camaActual && in_array($concepto, ['TOTAL', 'BAJAS'])) {
+                            $ubicacion = \App\Models\Ubicacion::where('Bloque', $bloqueDetectado)
+                                ->where('Nave', $soloNumeroNave)
+                                ->where('Cama', $camaActual)
+                                ->first();
+
+                            if (!$ubicacion) continue;
+
+                            foreach ($semanas as $colIndex => $fecha) {
+                                $cantidad = (int) ($filas[$i][$colIndex] ?? 0);
+                                
+                                $registro = \App\Models\Produccion::firstOrNew([
+                                    'ID_Ubicacion' => $ubicacion->ID_Ubicacion,
+                                    'Semana'       => $fecha['semana'],
+                                    'Anio'         => $fecha['anio'],
+                                ]);
+
+                                if ($concepto === 'TOTAL') {
+                                    $registro->Total = $cantidad;
+                                } elseif ($concepto === 'BAJAS') {
+                                    $registro->Bajas = $cantidad;
+                                }
+                                
+                                $registro->save();
+                                $totalRegistrosGuardados++;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4. Limpieza del servidor
+            \Illuminate\Support\Facades\File::deleteDirectory($extractFolder);
+            if(file_exists($tempZipPath)) unlink($tempZipPath);
+
+            return back()->with('success', "¡Sincronización masiva exitosa! Se procesaron $archivosProcesados archivos y se actualizaron $totalRegistrosGuardados registros en total.");
+
+        } catch (\Exception $e) {
+            // Limpieza en caso de error
+            if(isset($extractFolder)) \Illuminate\Support\Facades\File::deleteDirectory($extractFolder);
+            if(isset($tempZipPath) && file_exists($tempZipPath)) unlink($tempZipPath);
+            
+            return back()->withErrors("Error procesando la carpeta: " . $e->getMessage());
+        }
+    }
+    
     // IMPORTAR CSV NATIVO (Busca automáticamente por Bloque/Nave/Cama)
     public function importarCsv(Request $request)
     {
@@ -286,77 +478,220 @@ class ProduccionController extends Controller
     public function exportarExcelMultiNave(Request $request)
     {
         $bloqueSelected = $request->input('bloque_exportar');
+        if (!$bloqueSelected) return back()->withErrors('Selecciona un bloque.');
 
-        if (!$bloqueSelected) {
-            return back()->withErrors('Debes seleccionar un Bloque para descargar.');
-        }
-
-        // Consultamos las naves asociadas a este bloque
         $naves = \App\Models\Ubicacion::where('Bloque', $bloqueSelected)
-            ->select('Nave')
-            ->distinct()
-            ->orderBy('Nave')
-            ->pluck('Nave');
+                    ->select('Nave')->distinct()->orderBy('Nave')->pluck('Nave');
 
-        if ($naves->isEmpty()) {
-            return back()->withErrors("No se encontraron naves registradas para el Bloque {$bloqueSelected}.");
-        }
+        if ($naves->isEmpty()) return back()->withErrors('No hay naves registradas en este bloque.');
 
-        // Creamos un nuevo libro de trabajo
+        // 1. Obtener las semanas registradas para generar las cabeceras
+        $semanas = \App\Models\Produccion::whereHas('ubicacion', function($q) use($bloqueSelected) {
+                        $q->where('Bloque', $bloqueSelected);
+                    })->select('Anio', 'Semana')->distinct()
+                      ->orderBy('Anio', 'desc')->orderBy('Semana', 'desc')
+                      ->take(12)->get()->reverse()->values();
+
         $spreadsheet = new Spreadsheet();
-        $sheetIndex = 0;
+        
+        // 2. Crear una pestaña por Nave
+        foreach ($naves as $index => $nave) {
+            $sheet = $index === 0 ? $spreadsheet->getActiveSheet() : $spreadsheet->createSheet();
+            $sheet->setTitle(substr("Nave " . preg_replace('/[^0-9]/', '', $nave), 0, 31));
 
-        foreach ($naves as $nave) {
-            // Usamos la primera hoja por defecto o creamos una nueva
-            if ($sheetIndex === 0) {
-                $sheet = $spreadsheet->getActiveSheet();
-            } else {
-                $sheet = $spreadsheet->createSheet();
+            $camas = \App\Models\Ubicacion::where('Bloque', $bloqueSelected)
+                        ->where('Nave', $nave)->orderBy('Cama')->pluck('Cama');
+
+            $filaActual = 1;
+
+            // 3. Dibujar la estructura por cada Cama
+            foreach ($camas as $indexCama => $cama) {
+                // Etiqueta roja de la cama
+                $sheet->setCellValue('A' . $filaActual, 'CAMA ' . $cama);
+                $sheet->getStyle('A' . $filaActual)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFFF0000');
+                
+                $filaConceptos = $filaActual;
+
+                // 🌟 MAGIA AQUÍ: Solo la primera cama lleva la fila de "SEMANA"
+                if ($indexCama === 0) {
+                    $sheet->setCellValue('B' . $filaActual, 'SEMANA');
+                    
+                    // Imprimir Cabeceras de Semanas (2024 - 24, etc.)
+                    $colIndex = 3; 
+                    foreach ($semanas as $sem) {
+                        $letra = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex);
+                        $sheet->setCellValue($letra . $filaActual, $sem->Anio . ' - ' . $sem->Semana);
+                        $colIndex++;
+                    }
+                    
+                    $filaConceptos++; // Bajamos una fila para empezar a escribir 'LUNES'
+                    $desplazamiento = 12; // 1 (Semana) + 10 (Lunes a Acumulado) + 1 (Fila en blanco)
+                } else {
+                    $desplazamiento = 11; // 10 (Lunes a Acumulado) + 1 (Fila en blanco)
+                }
+                
+                // Imprimir Conceptos (Lunes a Acumulado)
+                $conceptos = ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO', 'DOMINGO', 'BAJAS', 'TOTAL', 'ACUMULADO'];
+                foreach ($conceptos as $i => $concepto) {
+                    $sheet->setCellValue('B' . ($filaConceptos + $i), $concepto);
+                }
+
+                // 4. Llenar los datos consultando la BD
+                $colIndex = 3;
+                $acumulado = 0;
+                foreach ($semanas as $sem) {
+                    $letra = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex);
+                    
+                    $registro = \App\Models\Produccion::whereHas('ubicacion', function($q) use($bloqueSelected, $nave, $cama) {
+                        $q->where('Bloque', $bloqueSelected)->where('Nave', $nave)->where('Cama', $cama);
+                    })->where('Anio', $sem->Anio)->where('Semana', $sem->Semana)->first();
+
+                    $bajas = $registro ? $registro->Bajas : '';
+                    $total = $registro ? $registro->Total : '';
+                    $acumulado += (int)$total;
+
+                    // Llenar Bajas, Total y Acumulado (usando el índice dinámico $filaConceptos)
+                    $sheet->setCellValue($letra . ($filaConceptos + 7), $bajas); 
+                    $sheet->setCellValue($letra . ($filaConceptos + 8), $total); 
+                    $sheet->setCellValue($letra . ($filaConceptos + 9), $acumulado > 0 ? $acumulado : ''); 
+                    
+                    $colIndex++;
+                }
+
+                // Avanzamos las filas necesarias para la siguiente cama
+                $filaActual += $desplazamiento; 
             }
-
-            // Asignamos el nombre de la pestaña (ej: "Nave 1")
-            $nombreLimpio = preg_replace('/[^0-9]/', '', $nave);
-            $tituloHoja = !empty($nombreLimpio) ? "Nave " . $nombreLimpio : "Nave " . $nave;
-            $sheet->setTitle(substr($tituloHoja, 0, 31)); // Máximo 31 caracteres permitido por Excel
-
-            // Escribimos los encabezados en la Fila 1
-            $sheet->setCellValue('A1', 'cama');
-            $sheet->setCellValue('B1', 'semana');
-            $sheet->setCellValue('C1', 'anio');
-            $sheet->setCellValue('D1', 'bajas');
-            $sheet->setCellValue('E1', 'total');
-
-            // Consultamos la producción registrada para esta Nave y Bloque
-            $registros = \App\Models\Produccion::whereHas('ubicacion', function ($q) use ($bloqueSelected, $nave) {
-                $q->where('Bloque', $bloqueSelected)->where('Nave', $nave);
-            })
-            ->with('ubicacion')
-            ->orderBy('Semana', 'desc')
-            ->get();
-
-            // Llenamos las filas con los datos de producción
-            $fila = 2;
-            foreach ($registros as $r) {
-                $sheet->setCellValue('A' . $fila, $r->ubicacion->Cama);
-                $sheet->setCellValue('B' . $fila, $r->Semana);
-                $sheet->setCellValue('C' . $fila, $r->Anio);
-                $sheet->setCellValue('D' . $fila, $r->Bajas);
-                $sheet->setCellValue('E' . $fila, $r->Total);
-                $fila++;
-            }
-
-            $sheetIndex++;
         }
 
-        $nombreArchivo = "Produccion_Bloque_{$bloqueSelected}.xlsx";
-
-        // Retornamos el archivo .xlsx para descarga directa en el navegador
         return response()->streamDownload(function () use ($spreadsheet) {
             $writer = new Xlsx($spreadsheet);
             $writer->save('php://output');
-        }, $nombreArchivo, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'Cache-Control' => 'max-age=0',
+        }, "Bloque_{$bloqueSelected}.xlsx");
+    }
+
+    public function probarEnlaceUnico(Request $request)
+    {
+        // Damos tiempo y memoria para la prueba
+        set_time_limit(0); 
+        ini_set('memory_limit', '2048M');
+
+        $request->validate([
+            'enlace' => 'required|url',
+            'bloque' => 'required|string'
         ]);
+
+        $bloqueSelected = $request->input('bloque');
+        
+        // Limpiamos el enlace de OneDrive y forzamos la descarga del archivo
+        $urlBase = explode('?', $request->input('enlace'))[0];
+        $urlDescarga = $urlBase . '?download=1';
+        
+        $tempExcel = storage_path('app/temp_excel_' . time() . '.xlsx');
+
+        try {
+            // 1. Descargar el archivo
+            // Le decimos a Laravel que siga todas las redirecciones de OneDrive hasta llegar al archivo real
+            // Engañamos a Microsoft haciéndole creer que Laravel es Google Chrome en Windows
+            $response = \Illuminate\Support\Facades\Http::withHeaders([
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept'     => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+            ])->withOptions([
+                'allow_redirects' => true,
+                'verify'          => false,
+            ])->timeout(120)->get($urlDescarga);
+            if (!$response->successful()) {
+                return back()->withErrors('No se pudo descargar el Excel. Verifica que el enlace sea público.');
+            }
+            file_put_contents($tempExcel, $response->body());
+
+            // 2. Procesar el archivo (1 Pestaña = 1 Nave)
+            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($tempExcel);
+            $registrosGuardados = 0;
+
+            foreach ($spreadsheet->getAllSheets() as $sheet) {
+                $nave = preg_replace('/[^0-9]/', '', trim($sheet->getTitle()));
+                if(empty($nave)) continue;
+
+                $filas = $sheet->toArray();
+                if (count($filas) < 3) continue;
+
+                // Mapear Semanas (Fila 1)
+                $semanas = [];
+                for ($col = 2; $col < count($filas[0]); $col++) {
+                    $cabecera = trim($filas[0][$col] ?? '');
+                    if (strpos($cabecera, '-') !== false) {
+                        $p = explode('-', $cabecera);
+                        $semanas[$col] = ['anio' => (int)trim($p[0]), 'semana' => (int)trim($p[1])];
+                    }
+                }
+
+                $camaActual = null;
+                // Leer Filas
+                for ($i = 0; $i < count($filas); $i++) {
+                    $colA = trim($filas[$i][0] ?? '');
+                    if (stripos($colA, 'CAMA') !== false) {
+                        $camaActual = preg_replace('/[^0-9]/', '', $colA);
+                    }
+
+                    $concepto = strtoupper(trim($filas[$i][1] ?? ''));
+                    if ($camaActual && in_array($concepto, ['TOTAL', 'BAJAS'])) {
+                        $ubicacion = \App\Models\Ubicacion::where('Bloque', $bloqueSelected)
+                            ->where('Nave', $nave)->where('Cama', $camaActual)->first();
+
+                        if (!$ubicacion) continue;
+
+                        foreach ($semanas as $colIndex => $fecha) {
+                            $cantidad = (int) ($filas[$i][$colIndex] ?? 0);
+                            
+                            $registro = \App\Models\Produccion::firstOrNew([
+                                'ID_Ubicacion' => $ubicacion->ID_Ubicacion,
+                                'Semana' => $fecha['semana'], 'Anio' => $fecha['anio'],
+                            ]);
+
+                            if ($concepto === 'TOTAL') $registro->Total = $cantidad;
+                            elseif ($concepto === 'BAJAS') $registro->Bajas = $cantidad;
+                            
+                            $registro->save();
+                            $registrosGuardados++;
+                        }
+                    }
+                }
+            }
+
+            // 3. Limpieza
+            unlink($tempExcel);
+            return back()->with('success', "¡Prueba exitosa! Se procesó el Excel y se guardaron $registrosGuardados registros para el Bloque $bloqueSelected.");
+
+        } catch (\Exception $e) {
+            if(file_exists($tempExcel)) unlink($tempExcel);
+            return back()->withErrors("Error en la prueba: " . $e->getMessage());
+        }
+    }
+
+    
+    public function configuracionEnlaces()
+    {
+        // Traemos todos los enlaces guardados
+        $planillas = Planilla::orderBy('bloque')->get();
+        // Traemos los bloques existentes en tu finca para el menú desplegable
+        $bloques = Ubicacion::select('Bloque')->distinct()->orderBy('Bloque')->pluck('Bloque');
+        
+        return view('configuracion.configuracion_enlaces', compact('planillas', 'bloques'));
+    }
+
+    // Guardar o actualizar un enlace en la base de datos
+    public function guardarEnlace(Request $request)
+    {
+        $request->validate([
+            'bloque' => 'required|string',
+            'url_onedrive' => 'required|url'
+        ]);
+
+        Planilla::updateOrCreate(
+            ['bloque' => $request->bloque],
+            ['url_onedrive' => $request->url_onedrive]
+        );
+
+        return back()->with('success', 'El enlace del Bloque ' . $request->bloque . ' se guardó correctamente.');
     }
 }
