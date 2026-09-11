@@ -144,25 +144,39 @@
 <script>
     const labels = @json($registrosGrafica->pluck('fecha')->map(fn($f) => \Carbon\Carbon::parse($f)->format('d/m')));
 
-    const amortiguadorDifRegistroL = @json($registrosGrafica->pluck('amortiguador_diferencia_registro'))
-        .map(v => v === null ? null : v * 1000);
+    // Función auxiliar: oculta negativos (llenados) convirtiéndolos en null
+    const ocultarNegativos = (arr) => arr.map(v => (v === null || v < 0) ? null : v);
 
-    const agrofeedDifRegistroL = @json($registrosGrafica->pluck('agrofeed_diferencia_registro'))
-        .map(v => v === null ? null : v * 1000);
+    const amortiguadorDifVisualL = ocultarNegativos(
+        @json($registrosGrafica->pluck('amortiguador_diferencia_visual'))
+    );
 
-    const aguaDifRegistroL = @json($registrosGrafica->pluck('agua_diferencia_registro'))
-        .map(v => v === null ? null : v * 1000);
+    const amortiguadorDifRegistroL = ocultarNegativos(
+        @json($registrosGrafica->pluck('amortiguador_diferencia_registro')).map(v => v === null ? null : v * 1000)
+    );
+
+    const agrofeedDifVisualL = ocultarNegativos(
+        @json($registrosGrafica->pluck('agrofeed_diferencia_visual'))
+    );
+
+    const agrofeedDifRegistroL = ocultarNegativos(
+        @json($registrosGrafica->pluck('agrofeed_diferencia_registro')).map(v => v === null ? null : v * 1000)
+    );
+
+    const aguaDifRegistroL = ocultarNegativos(
+        @json($registrosGrafica->pluck('agua_diferencia_registro')).map(v => v === null ? null : v * 1000)
+    );
 
     new Chart(document.getElementById('graficaInsumos'), {
         type: 'line',
         data: {
             labels: labels,
             datasets: [
-                { label: 'Amortiguador - Dif. Visual (L)', data: @json($registrosGrafica->pluck('amortiguador_diferencia_visual')), borderColor: '#2e7d32', tension: 0.3, yAxisID: 'yInsumos' },
-                { label: 'Amortiguador - Dif. Registro (L equiv.)', data: amortiguadorDifRegistroL, borderColor: '#66bb6a', tension: 0.3, yAxisID: 'yInsumos' },
-                { label: 'Agrofeed - Dif. Visual (L)', data: @json($registrosGrafica->pluck('agrofeed_diferencia_visual')), borderColor: '#f9a825', tension: 0.3, yAxisID: 'yInsumos' },
-                { label: 'Agrofeed - Dif. Registro (L equiv.)', data: agrofeedDifRegistroL, borderColor: '#fdd835', tension: 0.3, yAxisID: 'yInsumos' },
-                { label: 'Agua - Dif. Registro (L equiv.)', data: aguaDifRegistroL, borderColor: '#1e88e5', tension: 0.3, yAxisID: 'yAgua', borderDash: [5, 3] },
+                { label: 'Amortiguador - Dif. Visual (L)', data: amortiguadorDifVisualL, borderColor: '#2e7d32', tension: 0.3, yAxisID: 'yInsumos', spanGaps: false },
+                { label: 'Amortiguador - Dif. Registro (L equiv.)', data: amortiguadorDifRegistroL, borderColor: '#66bb6a', tension: 0.3, yAxisID: 'yInsumos', spanGaps: false },
+                { label: 'Agrofeed - Dif. Visual (L)', data: agrofeedDifVisualL, borderColor: '#f9a825', tension: 0.3, yAxisID: 'yInsumos', spanGaps: false },
+                { label: 'Agrofeed - Dif. Registro (L equiv.)', data: agrofeedDifRegistroL, borderColor: '#fdd835', tension: 0.3, yAxisID: 'yInsumos', spanGaps: false },
+                { label: 'Agua - Dif. Registro (L equiv.)', data: aguaDifRegistroL, borderColor: '#1e88e5', tension: 0.3, yAxisID: 'yAgua', borderDash: [5, 3], spanGaps: false },
             ]
         },
         options: {
