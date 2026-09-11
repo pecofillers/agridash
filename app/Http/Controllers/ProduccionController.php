@@ -129,33 +129,84 @@ class ProduccionController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
-    public function sincronizarBloque(Request $request)
+    public function sincronizarTodo(Request $request)
+    {
+        set_time_limit(0);
+        ini_set('memory_limit', '2048M');
+
+        $planillas = Planilla::whereNotNull('url_onedrive')->orderBy('bloque')->get();
+
+        if ($planillas->isEmpty()) {
+            return back()->withErrors('No hay ningún enlace de OneDrive configurado todavía. Ve a Configuración → Planillas.');
+        }
+
+        $resumen = [];
+        $errores = [];
+        $totalRegistros = 0;
+
+        foreach ($planillas as $planilla) {
+            $urlBase = explode('?', $planilla->url_onedrive)[0];
+            $urlDescarga = $urlBase . '?download=1';
+            $tempExcel = storage_path('app/temp_excel_bloque' . $planilla->bloque . '_' . time() . '.xlsx');
+
+            try {
+                $response = Http::withHeaders([
+                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept'     => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+                ])->withOptions([
+                    'allow_redirects' => true,
+                    'verify'          => false,
+                ])->timeout(120)->get($urlDescarga);
+
+                if (!$response->successful()) {
+                    $errores[] = "Bloque {$planilla->bloque}: no se pudo descargar el archivo.";
+                    continue;
+                }
+
+                file_put_contents($tempExcel, $response->body());
+
+                $guardados = $this->procesarExcelDeBloque($tempExcel, $planilla->bloque);
+                $totalRegistros += $guardados;
+                $resumen[] = "Bloque {$planilla->bloque}: $guardados registros.";
+
+                unlink($tempExcel);
+
+            } catch (\Exception $e) {
+                $errores[] = "Bloque {$planilla->bloque}: " . $e->getMessage();
+                if (file_exists($tempExcel)) unlink($tempExcel);
+            }
+        }
+
+        $mensaje = "✅ Sincronización masiva completada. Total: <strong>$totalRegistros</strong> registros.<br>" . implode('<br>', $resumen);
+
+        if (!empty($errores)) {
+            $mensaje .= "<br><br>⚠️ Bloques con error:<br>" . implode('<br>', $errores);
+        }
+
+        return back()->with('success', $mensaje);
+    }
+
+    public function sincronizar_bloque(Request $request)
     {
         set_time_limit(0); 
         ini_set('memory_limit', '2048M');
 
-        $request->validate([
-            'bloque' => 'required|string'
-        ]);
-
+        $request->validate(['bloque' => 'required|string']);
         $bloqueSelected = $request->input('bloque');
         
-        // 1. Buscamos el enlace guardado en la tabla planillas
         $planilla = Planilla::where('bloque', $bloqueSelected)->first();
 
         if (!$planilla || empty($planilla->url_onedrive)) {
             return back()->withErrors("No hay un enlace de OneDrive configurado para el Bloque $bloqueSelected.");
         }
 
-        // 2. Preparamos el enlace para descarga
         $urlBase = explode('?', $planilla->url_onedrive)[0];
         $urlDescarga = $urlBase . '?download=1';
         $tempExcel = storage_path('app/temp_excel_' . time() . '.xlsx');
 
         try {
-            // 3. Descargamos disfrazados de navegador
-            $response = \Illuminate\Support\Facades\Http::withHeaders([
-                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            $response = Http::withHeaders([
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept'     => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
             ])->withOptions([
                 'allow_redirects' => true,
@@ -165,16 +216,16 @@ class ProduccionController extends Controller
             if (!$response->successful()) {
                 return back()->withErrors("No se pudo descargar el Excel del Bloque $bloqueSelected desde OneDrive.");
             }
-            
+
             file_put_contents($tempExcel, $response->body());
 
-            // ... [AQUÍ VA EL RESTO DEL BUCLE FOREACH QUE YA TENÍAMOS PARA LEER LAS NAVES Y CAMAS] ...
+            $registrosGuardados = $this->procesarExcelDeBloque($tempExcel, $bloqueSelected);
 
             unlink($tempExcel);
-            return back()->with('success', "¡Sincronización exitosa! Se actualizaron los datos del Bloque $bloqueSelected.");
+            return back()->with('success', "¡Sincronización exitosa! Se procesó el Bloque $bloqueSelected y se guardaron/actualizaron $registrosGuardados registros.");
 
         } catch (\Exception $e) {
-            if(file_exists($tempExcel)) unlink($tempExcel);
+            if (file_exists($tempExcel)) unlink($tempExcel);
             return back()->withErrors("Error en la sincronización: " . $e->getMessage());
         }
     }
@@ -693,5 +744,81 @@ class ProduccionController extends Controller
         );
 
         return back()->with('success', 'El enlace del Bloque ' . $request->bloque . ' se guardó correctamente.');
+    }
+
+    /**
+ * Procesa un archivo Excel (1 hoja = 1 Nave) y guarda/actualiza
+ * los registros de producción para el bloque indicado.
+ * Reutilizado por sincronizar_bloque() y sincronizarTodo().
+ */
+    private function procesarExcelDeBloque(string $rutaExcel, string $bloque): int
+    {
+        $spreadsheet = IOFactory::load($rutaExcel);
+        $registrosGuardados = 0;
+
+        foreach ($spreadsheet->getAllSheets() as $sheet) {
+            $nombreHojaOriginal = trim($sheet->getTitle());
+            $soloNumeroNave = preg_replace('/[^0-9]/', '', $nombreHojaOriginal);
+            if (empty($soloNumeroNave)) continue;
+
+            $filas = $sheet->toArray();
+            if (count($filas) < 3) continue;
+
+            $semanas = [];
+            for ($col = 2; $col < count($filas[0]); $col++) {
+                $valorCabecera = trim($filas[0][$col] ?? '');
+                if (strpos($valorCabecera, '-') !== false) {
+                    $partes = explode('-', $valorCabecera);
+                    $semanas[$col] = ['anio' => (int) trim($partes[0]), 'semana' => (int) trim($partes[1])];
+                }
+            }
+
+            if (empty($semanas)) continue;
+            $camaActual = null;
+
+            for ($i = 0; $i < count($filas); $i++) {
+                $valorColA = trim($filas[$i][0] ?? '');
+                if (stripos($valorColA, 'CAMA') !== false) {
+                    $camaActual = preg_replace('/[^0-9]/', '', $valorColA);
+                }
+
+                $concepto = strtoupper(trim($filas[$i][1] ?? ''));
+
+                if ($camaActual && in_array($concepto, ['TOTAL', 'BAJAS'])) {
+                    $ubicacion = Ubicacion::where('Bloque', $bloque)
+                        ->where(function ($query) use ($nombreHojaOriginal, $soloNumeroNave) {
+                            $query->where('Nave', $nombreHojaOriginal)
+                                ->orWhere('Nave', $soloNumeroNave)
+                                ->orWhere('Nave', 'NAVE ' . $soloNumeroNave)
+                                ->orWhere('Nave', 'Nave ' . $soloNumeroNave);
+                        })
+                        ->where('Cama', $camaActual)
+                        ->first();
+
+                    if (!$ubicacion) continue;
+
+                    foreach ($semanas as $colIndex => $fecha) {
+                        $cantidad = (int) ($filas[$i][$colIndex] ?? 0);
+
+                        $registro = Produccion::firstOrNew([
+                            'ID_Ubicacion' => $ubicacion->ID_Ubicacion,
+                            'Semana'       => $fecha['semana'],
+                            'Anio'         => $fecha['anio'],
+                        ]);
+
+                        if ($concepto === 'TOTAL') {
+                            $registro->Total = $cantidad;
+                        } elseif ($concepto === 'BAJAS') {
+                            $registro->Bajas = $cantidad;
+                        }
+
+                        $registro->save();
+                        $registrosGuardados++;
+                    }
+                }
+            }
+        }
+
+        return $registrosGuardados;
     }
 }

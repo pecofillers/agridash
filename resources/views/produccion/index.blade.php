@@ -56,30 +56,38 @@
                 <div class="col-md-8">
                     <select name="bloque" class="form-select form-select-sm" required>
                         <option value="">Selecciona el bloque a sincronizar...</option>
-                        <!-- Aquí puedes iterar tus bloques -->
-                        <option value="1">Bloque 1</option>
-                        <option value="2">Bloque 2</option>
-                        <option value="3">Bloque 3</option>
-                        <option value="4">Bloque 4</option>
-                        <option value="5">Bloque 5</option>
-                        <option value="6">Bloque 6</option>
-                        <option value="7">Bloque 7</option>
-                        <option value="8">Bloque 8</option>
-                        <option value="9">Bloque 9</option>
-                        <option value="10">Bloque 10</option>
-                        <option value="11">Bloque 11</option>
-                        <option value="12">Bloque 12</option>
-                        <option value="13">Bloque 13</option>
+                        @foreach (\App\Models\Ubicacion::bloques() as $b)
+                            <option value="1">Bloque 1</option>
+                            <option value="2">Bloque 2</option>
+                            <option value="3">Bloque 3</option>
+                            <option value="4">Bloque 4</option>
+                            <option value="5">Bloque 5</option>
+                            <option value="6">Bloque 6</option>
+                            <option value="7">Bloque 7</option>
+                            <option value="8">Bloque 8</option>
+                            <option value="9">Bloque 9</option>
+                            <option value="10">Bloque 10</option>
+                            <option value="11">Bloque 11</option>
+                            <option value="12">Bloque 12</option>
+                            <option value="13">Bloque 13</option>
+                        @endforeach
                     </select>
                 </div>
                 <div class="col-md-4">
                     <button type="submit" class="btn btn-success btn-sm w-100">🔄 Sincronizar</button>
                 </div>
             </form>
-        </div>
-    </div>
 
-    
+            <!-- 🆕 Botón para sincronizar TODO -->
+            <form action="{{ route('produccion.sincronizar_todo') }}" method="POST" class="mt-3"
+                onsubmit="return confirm('Esto va a descargar y procesar TODOS los Excel de OneDrive configurados. Puede tardar varios minutos. ¿Continuar?');">
+                @csrf
+                <button type="submit" class="btn btn-warning btn-sm w-100">
+                    🔄🌐 Sincronizar TODOS los Bloques
+                </button>
+            </form>
+        </div>
+    </div>   
 </div>
 
 <div class="card card-dashboard p-4 mb-4">

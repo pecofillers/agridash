@@ -34,11 +34,12 @@ Route::middleware(['auth'])->group(function () {
     });
 
     // Exportar e importar produccion
-    Route::post('/produccion/importar-multinave', [App\Http\Controllers\ProduccionController::class, 'importarExcelMultiNave'])->name('produccion.importar_multinave');
-    Route::get('/produccion/exportar-multinave', [App\Http\Controllers\ProduccionController::class, 'exportarExcelMultiNave'])->name('produccion.exportar_multinave');
+    Route::post('/produccion/importar-multinave', [ProduccionController::class, 'importarExcelMultiNave'])->name('produccion.importar_multinave');
+    Route::get('/produccion/exportar-multinave', [ProduccionController::class, 'exportarExcelMultiNave'])->name('produccion.exportar_multinave');
     Route::post('/produccion/probar_enlace', [ProduccionController::class, 'probarEnlaceUnico'])->name('produccion.probar_enlace');
     Route::post('/produccion/importar_onedrive', [ProduccionController::class, 'importarCarpetaOneDrive'])->name('produccion.importar_onedrive');
-    Route::post('/produccion/sincronizar-bloque', [ProduccionController::class, 'sincronizar_bloque'])->name('produccion.sincronizar_bloque');
+    Route::post('/produccion/sincronizar_bloque', [ProduccionController::class, 'sincronizar_bloque'])->name('produccion.sincronizar_bloque');
+    Route::post('/produccion/sincronizar_todo', [ProduccionController::class, 'sincronizarTodo'])->name('produccion.sincronizar_todo');
 
     // Rendimiento
     Route::middleware('permiso:rendimiento_colaboradores,ver')->prefix('rendimiento')->name('rendimiento.')->group(function () {
