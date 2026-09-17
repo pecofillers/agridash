@@ -12,18 +12,35 @@ class Produccion extends Model
 
     protected $table = 'fact_produccion';
     protected $primaryKey = 'ID_Produccion';
+
     public $incrementing = true;
     public $timestamps = false;
     protected $keyType = 'int';
 
-    // Quitamos los días de la semana, dejamos solo Bajas y Total
     protected $fillable = [
-        'ID_Ubicacion', 'Semana', 'Anio',
-        'Bajas', 'Total',
+        'ID_Ubicacion',
+        'ID_Siembra',
+        'Semana',
+        'Anio',
+        'Bajas',
+        'Total',
     ];
 
     public function ubicacion()
     {
-        return $this->belongsTo(Ubicacion::class, 'ID_Ubicacion', 'ID_Ubicacion');
+        return $this->belongsTo(
+            Ubicacion::class,
+            'ID_Ubicacion',
+            'ID_Ubicacion'
+        );
+    }
+
+    public function siembra()
+    {
+        return $this->belongsTo(
+            Siembra::class,
+            'ID_Siembra',
+            'ID_Siembra'
+        );
     }
 }

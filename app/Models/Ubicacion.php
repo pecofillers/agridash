@@ -16,12 +16,31 @@ class Ubicacion extends Model
     protected $keyType = 'int';
     public $timestamps = false;
 
-    protected $fillable = ['ID_Ubicacion', 'Bloque', 'Nave', 'Cama', 'Estado', 'Metros_Lineales', 'Cuadros'];
+    protected $fillable = ['ID_Bloque', 'ID_Ubicacion', 'Bloque', 'Nave', 'Cama', 'Estado', 'Metros_Lineales', 'Cuadros'];
 
     protected $casts = [
         'Metros_Lineales' => 'decimal:2',
         'Cuadros'         => 'integer',
     ];
+
+    protected static function booted(): void
+    {
+        static::saving(function (Ubicacion $ubicacion) {
+            if (!$ubicacion->exists || $ubicacion->isDirty('Bloque') || !$ubicacion->ID_Bloque) {
+                $codigo = trim((string) $ubicacion->Bloque);
+                if ($codigo === '') {
+                    throw \Illuminate\Validation\ValidationException::withMessages(['Bloque' => 'Selecciona un bloque.']);
+                }
+                $bloque = Bloque::firstOrCreate(
+                    ['Codigo_Bloque' => $codigo],
+                    ['Nombre_Bloque' => 'Bloque '.$codigo, 'Estado' => 'ACTIVO']
+                );
+                $ubicacion->Bloque = $codigo;
+                $ubicacion->ID_Bloque = $bloque->ID_Bloque;
+                $ubicacion->unsetRelation('bloque');
+            }
+        });
+    }
 
     public function siembras()
     {
@@ -46,5 +65,14 @@ class Ubicacion extends Model
     public static function camas($bloque, $nave)
     {
         return self::query()->where('Bloque', $bloque)->where('Nave', $nave)->select('Cama')->distinct()->orderBy('Cama')->pluck('Cama');
+    }
+
+    public function bloque()
+    {
+        return $this->belongsTo(
+            Bloque::class,
+            'ID_Bloque',
+            'ID_Bloque'
+        );
     }
 }

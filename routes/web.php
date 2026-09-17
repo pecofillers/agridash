@@ -11,7 +11,10 @@ use App\Http\Controllers\UbicacionesController;
 use App\Http\Controllers\ConfiguracionController;
 use App\Http\Controllers\PlanoSiembraController;
 use App\Http\Controllers\InsumosController;
+use App\Http\Controllers\HistoricoSiembrasController;
+use App\Http\Controllers\ComparadorSiembrasController;
 use Illuminate\Support\Facades\Route;
+
 
 // ------------------------------------------------------------------
 // Autenticacion publica
@@ -29,17 +32,13 @@ Route::middleware(['auth'])->group(function () {
     // Produccion
     Route::middleware('permiso:registro_produccion,ver')->prefix('produccion')->name('produccion.')->group(function () {
         Route::get('/', [ProduccionController::class, 'index'])->name('index')->middleware('check.submodulo:registro_produccion,registro');
-        Route::post('/guardar', [ProduccionController::class, 'guardar'])->name('guardar');
-        Route::post('/actualizar', [ProduccionController::class, 'actualizar'])->name('actualizar');
     });
 
     // Exportar e importar produccion
-    Route::post('/produccion/importar-multinave', [ProduccionController::class, 'importarExcelMultiNave'])->name('produccion.importar_multinave');
     Route::get('/produccion/exportar-multinave', [ProduccionController::class, 'exportarExcelMultiNave'])->name('produccion.exportar_multinave');
-    Route::post('/produccion/probar_enlace', [ProduccionController::class, 'probarEnlaceUnico'])->name('produccion.probar_enlace');
-    Route::post('/produccion/importar_onedrive', [ProduccionController::class, 'importarCarpetaOneDrive'])->name('produccion.importar_onedrive');
     Route::post('/produccion/sincronizar_bloque', [ProduccionController::class, 'sincronizar_bloque'])->name('produccion.sincronizar_bloque');
     Route::post('/produccion/sincronizar_todo', [ProduccionController::class, 'sincronizarTodo'])->name('produccion.sincronizar_todo');
+    Route::get('/produccion/estado-sincronizacion', [ProduccionController::class, 'estadoSincronizacion'])->name('produccion.estado_sincronizacion');
 
     // Rendimiento
     Route::middleware('permiso:rendimiento_colaboradores,ver')->prefix('rendimiento')->name('rendimiento.')->group(function () {
@@ -59,7 +58,7 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('/labores/eliminar/{id}', [RendimientoController::class, 'eliminarLaborCatalogo'])->name('eliminarLaborCatalogo')->middleware('check.submodulo:rendimiento_colaboradores,gestion_grupos');
     });
 
-// Agronomia
+    // Agronomia
     Route::middleware('permiso:agronomia,ver')->prefix('agronomia')->name('agronomia.')->group(function () {
         Route::get('/', [AgronomiaController::class, 'index'])->name('index')->middleware('check.submodulo:agronomia,siembra');
         Route::post('/siembra', [AgronomiaController::class, 'registrarSiembra'])->name('siembra')->middleware('check.submodulo:agronomia,siembra');
@@ -75,16 +74,23 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/insumos/guardar', [InsumosController::class, 'store'])->name('insumos.guardar')->middleware('check.submodulo:agronomia,insumos');
         Route::get('/insumos/{insumo}/editar', [InsumosController::class, 'edit'])->name('insumos.editar')->middleware('check.submodulo:agronomia,insumos');
         Route::put('/insumos/{insumo}', [InsumosController::class, 'update'])->name('insumos.actualizar')->middleware('check.submodulo:agronomia,insumos');
+
+        //Historico de siembras
+        Route::get('/historico-siembras', [HistoricoSiembrasController::class, 'index'])->name('historico_siembras')->middleware('check.submodulo:agronomia,historico_siembras');
+        Route::get('/siembras-bloque/{bloque}', [HistoricoSiembrasController::class, 'siembrasBloque'])->name('siembras_bloque')->middleware('check.submodulo:agronomia,historico_siembras');
+
+        // Comparador Siembras.
+        Route::get('/comparador-siembras',[ComparadorSiembrasController::class, 'index'])->name('comparador-siembras')->middleware('check.submodulo:agronomia,comparador-siembras');
     });
 
     // ------------------------------------------------------------------
     // Planos de Siembra Interactivos (Vista tipo Excel)
     // ------------------------------------------------------------------
     Route::middleware('permiso:agronomia,ver')->prefix('planos')->name('plano_siembra.')->group(function () {
-    Route::get('/', [App\Http\Controllers\PlanoSiembraController::class, 'index'])->name('index');
-    Route::put('/actualizar-siembra/{idUbicacion}', [App\Http\Controllers\PlanoSiembraController::class, 'actualizarSiembra'])->name('actualizar_siembra');
-    Route::put('/actualizar-masivo', [App\Http\Controllers\PlanoSiembraController::class, 'actualizarMasivo'])->name('actualizar_masivo');
-});
+        Route::get('/', [PlanoSiembraController::class, 'index'])->name('index');
+        Route::put('/actualizar-siembra/{idUbicacion}', [PlanoSiembraController::class, 'actualizarSiembra'])->name('actualizar_siembra');
+        Route::put('/actualizar-masivo', [PlanoSiembraController::class, 'actualizarMasivo'])->name('actualizar_masivo');
+    });
 
     // Gestion de usuarios
     Route::middleware('permiso:gestion_usuarios,ver')->prefix('usuarios')->name('usuarios.')->group(function () {
@@ -94,10 +100,10 @@ Route::middleware(['auth'])->group(function () {
     });
 
     // Roles     
-    Route::middleware('permiso:administracion_roles,ver')->prefix('roles')->name('roles.')->group(function () {         
-        Route::get('/', [RolesController::class, 'index'])->name('index')->middleware('check.submodulo:administracion_roles,editar');         
-        Route::post('/guardar', [RolesController::class, 'guardar'])->name('guardar')->middleware('check.submodulo:administracion_roles,editar');         
-        Route::post('/borrar', [RolesController::class, 'borrar'])->name('borrar')->middleware('check.submodulo:administracion_roles,eliminar');     
+    Route::middleware('permiso:administracion_roles,ver')->prefix('roles')->name('roles.')->group(function () {
+        Route::get('/', [RolesController::class, 'index'])->name('index')->middleware('check.submodulo:administracion_roles,editar');
+        Route::post('/guardar', [RolesController::class, 'guardar'])->name('guardar')->middleware('check.submodulo:administracion_roles,editar');
+        Route::post('/borrar', [RolesController::class, 'borrar'])->name('borrar')->middleware('check.submodulo:administracion_roles,eliminar');
     });
 
     // Ubicaciones
@@ -110,17 +116,19 @@ Route::middleware(['auth'])->group(function () {
     // Configuracion
     Route::middleware('permiso:configuracion,ver')->prefix('configuracion')->name('configuracion.')->group(function () {
         Route::get('/', [ConfiguracionController::class, 'index'])->name('index');
-        
+
         // Sub-tab: Gestion de usuarios y estados
         Route::post('/crear-usuario', [ConfiguracionController::class, 'crearUsuario'])->name('crear_usuario')->middleware('check.submodulo:configuracion,usuarios');
         Route::post('/cambiar-estado', [ConfiguracionController::class, 'cambiarEstado'])->name('cambiar_estado')->middleware('check.submodulo:configuracion,usuarios');
         Route::post('/desbloquear', [ConfiguracionController::class, 'desbloquear'])->name('desbloquear')->middleware('check.submodulo:configuracion,usuarios');
-        
+
         // Sub-tab: Cambio de contrasenas
-        Route::post('/cambiar-contrasena', [ConfiguracionController::class, 'cambiarContrasena'])->name('cambiar_contrasena'); 
+        Route::post('/cambiar-contrasena', [ConfiguracionController::class, 'cambiarContrasena'])->name('cambiar_contrasena');
         Route::post('/restablecer-contrasena', [ConfiguracionController::class, 'restablecerContrasena'])->name('restablecer_contrasena')->middleware('check.submodulo:configuracion,credenciales');
 
-        Route::get('/configuracion-planillas', [ProduccionController::class, 'configuracionEnlaces'])->name('planillas.configuracion')->middleware('check.submodulo:configuracion,planillas');
-        Route::post('/configuracion-planillas/guardar', [ProduccionController::class, 'guardarEnlace'])->name('planillas.guardar')->middleware('check.submodulo:configuracion,planillas');
+        // Produccion
+        Route::get('/configuracion-bloques', [ProduccionController::class, 'configuracionEnlaces'])->name('bloques.configuracion')->middleware('check.submodulo:configuracion,bloques');
+        Route::post('/configuracion-bloques/guardar', [ProduccionController::class, 'guardarEnlace'])->name('bloques.guardar')->middleware('check.submodulo:configuracion,bloques');
+        Route::post('/configuracion-bloques/crear', [ProduccionController::class, 'crearBloque'])->name('bloques.crear')->middleware('check.submodulo:configuracion,bloques');
     });
 });

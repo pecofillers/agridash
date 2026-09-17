@@ -39,7 +39,9 @@ return [
                 'siembra' => ['etiqueta' => 'Registrar Siembra', 'ruta' => 'agronomia.index'],
                 'consolidado_bloque' => ['etiqueta' => 'Consolidado por Bloque', 'ruta' => 'agronomia.consolidado_bloque'],
                 'planos' => ['etiqueta' => 'Plano de Siembras', 'ruta' => 'plano_siembra.index'],
-                'insumos' => ['etiqueta' => 'Insumos Diarios', 'ruta' => 'agronomia.insumos'],
+                'insumos' => ['etiqueta' => 'Control Fertilizantes', 'ruta' => 'agronomia.insumos'],
+                'historico_siembras' => ['etiqueta' => 'Histórico de Cultivos', 'ruta' => 'agronomia.historico_siembras'],
+                'comparador-siembras' => ['etiqueta' => 'Comparador de Siembras','ruta' => 'agronomia.comparador-siembras'],
             ]
         ],
         'administracion_ubicaciones' => [
@@ -73,7 +75,7 @@ return [
             'submodulos' => [
                 'usuarios' => ['etiqueta' => 'Gestion de Usuarios y Estados', 'ruta' => 'configuracion.index'],
                 'credenciales' => ['etiqueta' => 'Cambio de Contrasena', 'ruta' => 'configuracion.index'],
-                'planillas' => ['etiqueta' => 'Configuracion de Enlaces OneDrive', 'ruta' => 'configuracion.planillas.configuracion'],
+                'bloques' => ['etiqueta' => 'Configuracion de Enlaces OneDrive', 'ruta' => 'configuracion.bloques.configuracion'],
             ]
         ],
     ]
