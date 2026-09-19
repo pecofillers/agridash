@@ -42,6 +42,7 @@ return [
                 'insumos' => ['etiqueta' => 'Control Fertilizantes', 'ruta' => 'agronomia.insumos'],
                 'historico_siembras' => ['etiqueta' => 'Histórico de Cultivos', 'ruta' => 'agronomia.historico_siembras'],
                 'comparador-siembras' => ['etiqueta' => 'Comparador de Siembras','ruta' => 'agronomia.comparador-siembras'],
+                'reporte-produccion' => ['etiqueta' => 'Reporte de Producción', 'ruta' => 'agronomia.reporte-produccion'],
             ]
         ],
         'administracion_ubicaciones' => [

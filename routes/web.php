@@ -13,6 +13,7 @@ use App\Http\Controllers\PlanoSiembraController;
 use App\Http\Controllers\InsumosController;
 use App\Http\Controllers\HistoricoSiembrasController;
 use App\Http\Controllers\ComparadorSiembrasController;
+use App\Http\Controllers\ProduccionReporteController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -81,6 +82,9 @@ Route::middleware(['auth'])->group(function () {
 
         // Comparador Siembras.
         Route::get('/comparador-siembras',[ComparadorSiembrasController::class, 'index'])->name('comparador-siembras')->middleware('check.submodulo:agronomia,comparador-siembras');
+
+        // Reporte de Producción
+        Route::get('/reporte-produccion', [ProduccionReporteController::class, 'index'])->name('reporte-produccion')->middleware('check.submodulo:agronomia,reporte-produccion');
     });
 
     // ------------------------------------------------------------------
@@ -109,7 +113,7 @@ Route::middleware(['auth'])->group(function () {
     // Ubicaciones
     Route::middleware('permiso:administracion_ubicaciones,ver')->prefix('ubicaciones')->name('ubicaciones.')->group(function () {
         Route::get('/', [UbicacionesController::class, 'index'])->name('index')->middleware('check.submodulo:administracion_ubicaciones,listado');
-        Route::post('/crear', [UbicacionesController::class, 'crear'])->name('crear')->middleware('check.submodulo:administracion_ubicaciones,crear');
+        Route::post('/crear', [UbicacionesController::class, 'crear'])->name('crear')->middleware('check.submodulo:administracion_ubicaciones,listado');
         Route::put('/actualizar/{id}', [UbicacionesController::class, 'actualizar'])->name('actualizar');
     });
 

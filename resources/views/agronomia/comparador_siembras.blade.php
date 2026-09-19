@@ -39,24 +39,27 @@
 
 <form method="GET" action="{{ route('agronomia.comparador-siembras') }}" class="card p-3 mb-4 shadow-sm border-0 bg-light">
     <div class="row g-2 align-items-end">
-        <div class="col-md-2">
-            <label class="form-label fw-bold small text-muted mb-1">Desde</label>
-            <input type="date" name="fecha_desde" class="form-control form-control-sm" value="{{ request('fecha_desde') }}">
-        </div>
-        <div class="col-md-2">
-            <label class="form-label fw-bold small text-muted mb-1">Hasta</label>
-            <input type="date" name="fecha_hasta" class="form-control form-control-sm" value="{{ request('fecha_hasta') }}">
-        </div>
-        <div class="col-md-2">
-            <label class="form-label fw-bold small text-muted mb-1">Bloque</label>
-            <select name="bloque" class="form-select form-select-sm">
-                <option value="">Todos los bloques</option>
+        <div class="col-md-3">
+            <label class="form-label fw-bold small text-muted mb-1">Bloques</label>
+            <select name="bloques[]" multiple class="form-select form-select-sm" style="height: 80px;">
                 @foreach($bloques as $bloque)
-                    <option value="{{ $bloque->ID_Bloque }}" @selected(request('bloque') == $bloque->ID_Bloque)>
-                        {{ $bloque->Codigo_Bloque }}
+                    <option value="{{ $bloque->ID_Bloque }}" @selected(in_array($bloque->ID_Bloque, (array) request('bloques', [])))>
+                        {{ $bloque->Codigo_Bloque }} - {{ $bloque->Nombre_Bloque }}
                     </option>
                 @endforeach
             </select>
+            <small class="text-muted" style="font-size: 0.7rem;">Ctrl+Click para múltiples</small>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label fw-bold small text-muted mb-1">Variedades</label>
+            <select name="variedades[]" multiple class="form-select form-select-sm" style="height: 80px;">
+                @foreach($variedades as $variedad)
+                    <option value="{{ $variedad->ID_Variedad }}" @selected(in_array($variedad->ID_Variedad, (array) request('variedades', [])))>
+                        {{ $variedad->Nombre_Variedad }} @if($variedad->Color) - {{ $variedad->Color }} @endif
+                    </option>
+                @endforeach
+            </select>
+            <small class="text-muted" style="font-size: 0.7rem;">Ctrl+Click para múltiples</small>
         </div>
         <div class="col-md-4">
             <label class="form-label fw-bold small text-muted mb-1">Buscar</label>
@@ -85,9 +88,12 @@
     </div>
 
     <form method="GET" action="{{ route('agronomia.comparador-siembras') }}" id="formComparar">
-        <input type="hidden" name="fecha_desde" value="{{ request('fecha_desde') }}">
-        <input type="hidden" name="fecha_hasta" value="{{ request('fecha_hasta') }}">
-        <input type="hidden" name="bloque" value="{{ request('bloque') }}">
+        @foreach((array) request('bloques', []) as $bloque)
+            <input type="hidden" name="bloques[]" value="{{ $bloque }}">
+        @endforeach
+        @foreach((array) request('variedades', []) as $variedad)
+            <input type="hidden" name="variedades[]" value="{{ $variedad }}">
+        @endforeach
         <input type="hidden" name="texto" value="{{ request('texto') }}">
         <input type="hidden" name="buscar" value="1">
 

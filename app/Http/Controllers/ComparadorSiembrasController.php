@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Bloque;
 use App\Models\CicloSiembra;
 use App\Models\Produccion;
+use App\Models\Variedad;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -13,25 +14,30 @@ class ComparadorSiembrasController extends Controller
 {
     public function index(Request $request)
     {
+        if ($request->filled('bloques') && !is_array($request->bloques)) {
+            $request->merge(['bloques' => [$request->bloques]]);
+        }
+
+        if ($request->filled('variedades') && !is_array($request->variedades)) {
+            $request->merge(['variedades' => [$request->variedades]]);
+        }
+
         $request->validate([
-            'fecha_desde' => 'nullable|date',
-            'fecha_hasta' => 'nullable|date',
-            'bloque' => 'nullable|integer|exists:dim_bloques,ID_Bloque',
+            'bloques' => 'nullable|array|max:50',
+            'bloques.*' => 'required|integer|distinct|exists:dim_bloques,ID_Bloque',
+            'variedades' => 'nullable|array|max:50',
+            'variedades.*' => 'required|integer|distinct|exists:dim_variedades,ID_Variedad',
             'texto' => 'nullable|string|max:150',
             'ciclos' => 'nullable|array|max:50',
             'ciclos.*' => 'required|integer|distinct|exists:dim_ciclos_siembras,ID_Ciclo_Siembra',
         ]);
-        if ($request->filled('fecha_desde') && $request->filled('fecha_hasta')
-            && $request->date('fecha_desde')->gt($request->date('fecha_hasta'))) {
-            throw ValidationException::withMessages(['fecha_hasta' => 'La fecha final debe ser posterior a la inicial.']);
-        }
         $bloques = Bloque::orderBy('Codigo_Bloque')->get();
+        $variedades = Variedad::orderBy('Nombre_Variedad')->get();
         $ciclos = collect();
         if ($request->boolean('buscar')) {
             $query = CicloSiembra::with(['bloque', 'variedad', 'siembras'])->whereHas('siembras');
-            $query->when($request->filled('bloque'), fn ($q) => $q->where('ID_Bloque', $request->bloque))
-                ->when($request->filled('fecha_desde'), fn ($q) => $q->whereDate('Fecha_Siembra', '>=', $request->fecha_desde))
-                ->when($request->filled('fecha_hasta'), fn ($q) => $q->whereDate('Fecha_Siembra', '<=', $request->fecha_hasta));
+            $query->when($request->filled('bloques'), fn ($q) => $q->whereIn('ID_Bloque', $request->bloques))
+                ->when($request->filled('variedades'), fn ($q) => $q->whereIn('ID_Variedad', $request->variedades));
             if ($request->filled('texto')) {
                 $texto = '%'.$request->texto.'%';
                 $query->where(function ($q) use ($texto) {
@@ -57,7 +63,7 @@ class ComparadorSiembrasController extends Controller
                 ->whereIn('ID_Ciclo_Siembra', $request->ciclos)->orderBy('Fecha_Siembra')->get();
             $reporte = $this->generarReporte($seleccion);
         }
-        return view('agronomia.comparador_siembras', compact('bloques', 'ciclos', 'reporte'));
+        return view('agronomia.comparador_siembras', compact('bloques', 'variedades', 'ciclos', 'reporte'));
     }
 
     private function nombreVariedad(CicloSiembra $ciclo): string
@@ -83,10 +89,13 @@ class ComparadorSiembrasController extends Controller
             $semanas = [];
             foreach ($ciclo->siembras as $siembra) {
                 foreach ($producciones->get($siembra->ID_Siembra, collect()) as $p) {
-                    if ($p->Semana < 1 || $p->Semana > 53 || !$p->Anio) {
+                    $semanasAnio = CarbonImmutable::create($p->Anio, 12, 28)->isoWeeksInYear();
+                    if ($p->Semana < 1 || $p->Semana > $semanasAnio || !$p->Anio) {
                         continue;
                     }
-                    $fecha = CarbonImmutable::now()->setISODate((int) $p->Anio, (int) $p->Semana, 1)->startOfDay();
+                    $fecha = CarbonImmutable::create((int)$p->Anio, 1, 1)
+                        ->setISODate((int)$p->Anio, (int)$p->Semana, 1)
+                        ->startOfDay();
                     if ($fecha->isoWeekYear !== (int) $p->Anio || $fecha->isoWeek !== (int) $p->Semana
                         || $fecha->lt($inicio) || $fecha->gt(CarbonImmutable::now()->startOfWeek())
                         || ($siembra->Fecha_Siembra && $fecha->lt(CarbonImmutable::instance($siembra->Fecha_Siembra)->startOfWeek()))
